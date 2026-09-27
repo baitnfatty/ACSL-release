@@ -1,0 +1,3490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACSL Research Console</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #1c2129;
+  --surface3: #21262d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --orange: #d29922;
+  --yellow: #e3b341;
+  --purple: #bc8cff;
+  --cyan: #39d2c0;
+  --pink: #f778ba;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  font-size: 14px;
+}
+.app { max-width: 1600px; margin: 0 auto; padding: 16px; padding-bottom: 40px; }
+
+/* ── Header ────────────────────────────────── */
+header {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 0; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+}
+header h1 { font-size: 20px; font-weight: 600; }
+header h1 span { color: var(--accent); }
+#status-badge {
+  font-size: 12px; padding: 3px 10px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+#status-badge.loaded { border-color: var(--green); color: var(--green); }
+#status-badge.loading { border-color: var(--orange); color: var(--orange); }
+#status-badge.error { border-color: var(--red); color: var(--red); }
+#status-badge.unloaded { border-color: var(--text-dim); color: var(--text-dim); }
+#model-info { font-size: 12px; color: var(--text-dim); margin-left: auto; }
+#profile-select, #tab-select {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer;
+}
+.cache-badge {
+  font-size: 11px; color: var(--text-dim); padding: 2px 8px;
+  background: var(--surface2); border-radius: 8px;
+}
+
+/* ── Tabs ──────────────────────────────────── */
+.tab-bar {
+  display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 16px;
+}
+.tab-bar button {
+  background: none; border: none; color: var(--text-dim); font-size: 13px;
+  padding: 8px 16px; cursor: pointer; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: color 0.15s, border-color 0.15s;
+}
+.tab-bar button:hover { color: var(--text); }
+.tab-bar button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Cards and Panels ─────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; margin-bottom: 16px;
+}
+.card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-dim); }
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.col { flex: 1; min-width: 300px; }
+
+/* ── Form elements ────────────────────────── */
+textarea, input[type=text], input[type=number], select {
+  width: 100%; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 12px; font-family: inherit; font-size: 13px; resize: vertical;
+}
+textarea:focus, input:focus, select:focus { outline: none; border-color: var(--accent); }
+label { font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 4px; }
+.input-group { margin-bottom: 12px; }
+
+/* ── Buttons ──────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 14px; font-size: 13px;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover { background: var(--surface3); border-color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #000; border-color: var(--accent); }
+.btn-primary:hover { background: #79c0ff; }
+.btn-sm { padding: 3px 8px; font-size: 11px; }
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(248,81,73,0.15); }
+
+/* ── Trajectory Chart (SVG) ───────────────── */
+.chart-container { position: relative; overflow: hidden; }
+.chart-container svg { width: 100%; height: auto; }
+.chart-tooltip {
+  position: absolute; display: none; background: var(--surface3);
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
+  font-size: 12px; pointer-events: none; z-index: 10; white-space: nowrap;
+}
+
+/* ── Risk Bar ─────────────────────────────── */
+.risk-bar-container { margin: 8px 0; }
+.risk-bar {
+  height: 10px; border-radius: 5px; background: var(--surface2);
+  overflow: hidden; position: relative;
+}
+.risk-bar-fill {
+  height: 100%; border-radius: 5px; transition: width 0.3s;
+}
+.risk-bar-markers {
+  position: relative; height: 12px; font-size: 10px; color: var(--text-dim);
+}
+.risk-bar-marker {
+  position: absolute; top: 0; transform: translateX(-50%);
+}
+
+/* ── Category badge ───────────────────────── */
+.badge {
+  display: inline-block; font-size: 11px; padding: 2px 8px;
+  border-radius: 10px; border: 1px solid; font-weight: 500;
+}
+.badge-green { color: var(--green); border-color: var(--green); background: rgba(63,185,80,0.1); }
+.badge-red { color: var(--red); border-color: var(--red); background: rgba(248,81,73,0.1); }
+.badge-orange { color: var(--orange); border-color: var(--orange); background: rgba(210,153,34,0.1); }
+.badge-purple { color: var(--purple); border-color: var(--purple); background: rgba(188,140,255,0.1); }
+.badge-cyan { color: var(--cyan); border-color: var(--cyan); background: rgba(57,210,192,0.1); }
+.badge-yellow { color: var(--yellow); border-color: var(--yellow); background: rgba(227,179,65,0.1); }
+
+/* ── Gate decision ────────────────────────── */
+.gate-box {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500;
+}
+.gate-answer { background: rgba(63,185,80,0.15); color: var(--green); }
+.gate-steer { background: rgba(210,153,34,0.15); color: var(--orange); }
+.gate-refuse { background: rgba(248,81,73,0.15); color: var(--red); }
+.gate-flag { background: rgba(188,140,255,0.15); color: var(--purple); }
+
+/* ── Response boxes ───────────────────────── */
+.response-box {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 12px; font-size: 13px;
+  max-height: 300px; overflow-y: auto; white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+/* ── Slider controls ──────────────────────── */
+.slider-row {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+}
+.slider-row label { width: 110px; flex-shrink: 0; margin-bottom: 0; }
+.slider-row input[type=range] { flex: 1; }
+.slider-row .slider-val { width: 60px; text-align: right; font-size: 12px; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* ── Compare layout ───────────────────────── */
+.compare-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .compare-split { grid-template-columns: 1fr; } }
+
+/* ── Batch table ──────────────────────────── */
+.batch-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.batch-table th, .batch-table td {
+  padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left;
+}
+.batch-table th { color: var(--text-dim); font-weight: 500; position: sticky; top: 0; background: var(--surface); }
+.batch-table tr:hover td { background: var(--surface2); }
+.batch-scroll { max-height: 500px; overflow-y: auto; }
+
+/* ── Audit ────────────────────────────────── */
+.audit-entry {
+  padding: 10px; border-bottom: 1px solid var(--border); font-size: 12px;
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.audit-entry:hover { background: var(--surface2); }
+.flag-btn { cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+
+/* ── Loading spinner ──────────────────────── */
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Misc ─────────────────────────────────── */
+.mono { font-family: 'Cascadia Code', 'Fira Code', monospace; }
+.text-dim { color: var(--text-dim); }
+.text-sm { font-size: 12px; }
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.gap-8 { gap: 8px; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.hidden { display: none !important; }
+
+/* ── Chat interface ──────────────────────── */
+.chat-container {
+  display: flex; flex-direction: column; height: calc(100vh - 200px);
+  min-height: 500px;
+}
+.chat-history {
+  flex: 1; overflow-y: auto; padding: 12px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px 8px 0 0;
+}
+.chat-msg {
+  margin-bottom: 12px; padding: 10px 14px; border-radius: 8px;
+  font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+}
+.chat-msg-user {
+  background: var(--surface3); border: 1px solid var(--border);
+  margin-left: 60px;
+}
+.chat-msg-user .chat-msg-label { color: var(--accent); }
+.chat-msg-assistant {
+  background: var(--surface); border: 1px solid var(--border);
+  margin-right: 60px;
+}
+.chat-msg-assistant .chat-msg-label { color: var(--green); }
+.chat-msg-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+}
+.chat-msg-meta {
+  font-size: 11px; color: var(--text-dim); margin-top: 6px;
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.chat-thinking {
+  margin-top: 8px; padding: 8px 12px;
+  background: var(--surface2); border-left: 3px solid var(--purple);
+  border-radius: 0 6px 6px 0; font-size: 12px; color: var(--text-dim);
+  max-height: 200px; overflow-y: auto;
+}
+.chat-thinking summary {
+  cursor: pointer; color: var(--purple); font-size: 11px; font-weight: 500;
+}
+.chat-input-area {
+  display: flex; gap: 8px; padding: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: none; border-radius: 0 0 8px 8px;
+  align-items: flex-end;
+}
+.chat-input-area textarea {
+  flex: 1; min-height: 42px; max-height: 160px;
+  resize: none; border-radius: 6px;
+}
+.chat-controls {
+  display: flex; gap: 8px; align-items: center; padding: 8px 0;
+  flex-wrap: wrap;
+}
+.toggle-switch {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-dim); cursor: pointer;
+  user-select: none;
+}
+.toggle-switch input[type=checkbox] { display: none; }
+.toggle-track {
+  width: 34px; height: 18px; border-radius: 9px;
+  background: var(--surface3); border: 1px solid var(--border);
+  position: relative; transition: background 0.2s;
+}
+.toggle-track::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--text-dim); transition: transform 0.2s, background 0.2s;
+}
+.toggle-switch input:checked + .toggle-track {
+  background: var(--accent); border-color: var(--accent);
+}
+.toggle-switch input:checked + .toggle-track::after {
+  transform: translateX(16px); background: #fff;
+}
+
+/* Log panel */
+.log-panel {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #0d0d0d; border-top: 1px solid var(--border);
+  z-index: 100; transition: height 0.2s;
+}
+.log-panel.collapsed { height: 28px; }
+.log-panel.expanded { height: 240px; }
+.log-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px; cursor: pointer; user-select: none;
+  font-size: 12px; color: var(--text-dim); background: #111;
+  border-bottom: 1px solid var(--border);
+}
+.log-header .log-count {
+  background: var(--accent); color: #000; border-radius: 8px;
+  padding: 0 6px; font-size: 10px; font-weight: 600;
+  min-width: 18px; text-align: center;
+}
+.log-body {
+  height: calc(100% - 28px); overflow-y: auto;
+  font-family: 'Consolas', 'Fira Code', monospace;
+  font-size: 11px; padding: 4px 8px; line-height: 1.5;
+}
+.log-line { white-space: pre-wrap; word-break: break-all; }
+.log-line .log-ts { color: var(--text-dim); margin-right: 8px; }
+.log-line.log-err { color: var(--red); }
+.log-line.log-warn { color: var(--orange); }
+
+/* ── Intent Trace layout ─────────────────── */
+.it-top-bar {
+  display: flex; gap: 16px; align-items: flex-start;
+}
+.it-controls-col { flex: 1; min-width: 0; }
+.it-result-col { flex: 0 0 360px; }
+.it-controls-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 8px;
+}
+#it-history-list {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+  max-height: none;
+}
+.history-card {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+  transition: background 0.15s, border-color 0.15s;
+  min-height: 0; overflow: hidden;
+}
+.history-card:hover { background: var(--surface3); border-color: var(--accent); }
+.history-card .hc-prompt {
+  font-size: 12px; font-weight: 500; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.history-card .hc-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 10px; color: var(--text-dim); gap: 4px; flex-wrap: wrap;
+}
+.history-card .hc-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 10px; margin-top: auto;
+}
+
+/* ── Axis coverage indicator ── */
+.coverage-pill { display: inline-block; background: var(--surface3); border: 1px solid var(--border); border-radius: 10px; padding: 1px 9px; font-size: 11px; color: var(--accent); font-family: monospace; }
+.coverage-pill.warn { color: var(--red); border-color: var(--red); }
+#it-coverage code { background: var(--surface3); padding: 0 4px; border-radius: 3px; font-size: 11px; }
+
+/* ── Logit Lens / Gate 2×2 shared controls ── */
+.ll-controls { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.ll-table { border-collapse: collapse; font-size: 10px; font-family: monospace; }
+.ll-table th, .ll-table td { padding: 2px 4px; border: 1px solid rgba(255,255,255,0.05); white-space: nowrap; }
+.ll-table thead th { position: sticky; top: 0; background: var(--surface2); color: var(--text-dim); font-weight: 400; z-index: 1; }
+.ll-table th.ll-special { color: var(--accent); opacity: 0.6; }
+.ll-table .ll-corner { position: sticky; left: 0; z-index: 2; background: var(--surface2); }
+.ll-table .ll-layer { position: sticky; left: 0; background: var(--surface2); color: var(--text-dim); text-align: right; }
+.ll-table .ll-cell { text-align: center; color: #fff; }
+.ll-table tr.ll-final td { border-top: 2px solid var(--accent); font-weight: 600; }
+.ll-table tr.ll-final .ll-layer { color: var(--accent); }
+
+/* ── Gate 2×2 ── */
+.g2-thresholds { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+.g2-thresholds label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-dim); }
+.g2-layout { display: grid; grid-template-columns: 400px 1fr; gap: 16px; margin-top: 12px; align-items: start; }
+@media (max-width: 820px) { .g2-layout { grid-template-columns: 1fr; } }
+#g2-plot-wrap { display: flex; justify-content: center; }
+#g2-plot { background: #0a0d13; border-radius: 8px; max-width: 100%; }
+.g2-cell-badge { display: inline-block; padding: 6px 16px; border-radius: 6px; font-weight: 600; color: #fff; font-size: 15px; }
+.g2-scores { width: 100%; border-collapse: collapse; font-size: 13px; }
+.g2-scores td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+
+/* ── History page ── */
+.hist-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.hist-filter-bar select, .hist-search { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+.hist-search { flex: 1; min-width: 220px; }
+.hist-star-filter { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-dim); cursor: pointer; }
+.hist-bulk-bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: var(--surface2); border: 1px solid var(--accent); border-radius: 6px; margin-bottom: 10px; font-size: 12px; }
+.hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.hist-table th { text-align: left; padding: 6px 8px; color: var(--text-dim); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 11px; }
+.hist-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; }
+.hist-table tr:hover td { background: rgba(255,255,255,0.02); }
+.hist-table .ht-check, .hist-table .ht-star { width: 24px; text-align: center; }
+.hist-table .ht-prompt { max-width: 420px; cursor: pointer; }
+.hist-table .ht-prompt-text { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.hist-table .ht-prompt:hover .ht-prompt-text { color: var(--accent); }
+.hist-table .ht-actions { white-space: nowrap; text-align: right; }
+.hist-table .ht-actions .btn { padding: 2px 8px; margin-left: 3px; }
+.ht-tags { margin-top: 3px; display: flex; gap: 3px; flex-wrap: wrap; }
+.tag-chip { background: var(--surface3); border: 1px solid var(--border); border-radius: 10px; padding: 0 7px; font-size: 10px; color: var(--text-dim); }
+.star-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 15px; padding: 0; }
+.star-btn.on { color: #f0c040; }
+.badge-axis { background: var(--surface3); color: var(--accent); }
+.btn.added { border-color: var(--green); color: var(--green); }
+.btn-danger { border-color: var(--red); color: var(--red); }
+.hist-pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 12px; }
+.hist-pager .btn:disabled { opacity: 0.35; cursor: default; }
+
+/* ── Cell-decode popover ── */
+.cell-decode { position: fixed; z-index: 1000; background: rgba(12,15,22,0.97); border: 1px solid var(--accent); border-radius: 6px; padding: 8px 10px; font-size: 11px; min-width: 150px; box-shadow: 0 6px 24px rgba(0,0,0,0.5); }
+.cell-decode .cd-head { font-weight: 600; color: var(--accent); margin-bottom: 5px; font-family: monospace; }
+.cell-decode .cd-row { display: flex; justify-content: space-between; gap: 10px; font-family: monospace; padding: 1px 0; }
+.cell-decode .cd-foot { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--border); font-size: 9px; font-style: italic; color: var(--text-dim); }
+
+/* Intent Trace heatmap */
+.heatmap-table { border-collapse: collapse; font-size: 11px; }
+.heatmap-table th { padding: 2px 4px; font-weight: 400; color: var(--text-dim); white-space: nowrap; }
+.heatmap-table th.band-col { border: 2px solid var(--accent); }
+.heatmap-table td { width: 18px; height: 18px; min-width: 18px; padding: 0; border: 1px solid rgba(255,255,255,0.05); }
+.heatmap-table .tok-label {
+  text-align: right; padding: 1px 6px; max-width: 120px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: var(--text-dim);
+  width: auto;
+}
+.heatmap-table td.band-col { border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+.heatmap-table tr:first-child td.band-col { border-top: 2px solid var(--accent); }
+.heatmap-table tr:last-child td.band-col { border-bottom: 2px solid var(--accent); }
+.bar-chart { display: flex; align-items: flex-end; gap: 2px; height: 80px; }
+.bar-chart .bar { min-width: 14px; background: var(--accent); border-radius: 2px 2px 0 0; position: relative; }
+.bar-chart .bar-label { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; }
+.view-toggle { display: flex; gap: 2px; }
+.view-toggle .btn { padding: 2px 10px; font-size: 11px; opacity: 0.5; }
+.view-toggle .btn.active { opacity: 1; border-color: var(--accent); color: var(--accent); }
+
+/* ── Compare Dock ────────────────────────── */
+.compare-dock { margin-top: 16px; }
+.compare-dock-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0; border-bottom: none;
+}
+.compare-dock-header h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--accent); }
+.compare-dock-body {
+  display: grid; gap: 12px; padding: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+}
+.compare-dock-body.cols-1 { grid-template-columns: 1fr; }
+.compare-dock-body.cols-2 { grid-template-columns: 1fr 1fr; }
+.compare-dock-body.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.compare-dock-body.cols-4 { grid-template-columns: 1fr 1fr; }
+@media (min-width: 1400px) {
+  .compare-dock-body.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .compare-dock-body.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+}
+.compare-slot {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; overflow: hidden;
+}
+.compare-slot-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; background: var(--surface3); border-bottom: 1px solid var(--border);
+  font-size: 11px; gap: 8px;
+}
+.compare-slot-header .slot-prompt {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 500;
+}
+.compare-slot-body { padding: 8px; overflow-x: auto; max-height: 500px; overflow-y: auto; }
+.compare-slot-body .heatmap-table td { width: 14px; height: 14px; min-width: 14px; }
+.compare-slot-body .heatmap-table th { font-size: 9px; }
+.compare-slot-body .heatmap-table .tok-label { font-size: 10px; max-width: 80px; }
+.compare-slot-3d { width: 100%; height: 350px; position: relative; background: #080a0f; border-radius: 4px; overflow: hidden; display: none; }
+.compare-slot-3d canvas { width: 100%; height: 100%; }
+.compare-slot-3d .cmp-3d-tooltip { display: none; position: absolute; background: rgba(0,0,0,0.85); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 10; border: 1px solid rgba(255,255,255,0.15); }
+.compare-slot-controls { padding: 4px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); }
+.compare-slot-controls .view-toggle { display: flex; gap: 2px; }
+.compare-slot-controls .view-toggle .btn { padding: 1px 8px; font-size: 10px; }
+.compare-slot-meta {
+  padding: 6px 10px; border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-dim);
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+#it-compare-diff .heatmap-table td { width: 16px; height: 16px; min-width: 16px; }
+#it-compare-diff .heatmap-table th { font-size: 9px; }
+#it-compare-diff .heatmap-table .tok-label { font-size: 10px; max-width: 90px; }
+.diff-divergent-list { font-size: 11px; }
+.diff-divergent-list .div-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid var(--border); }
+.diff-divergent-list .div-token { font-family: monospace; }
+.diff-divergent-list .div-val { font-weight: 600; }
+.btn-compare-add {
+  background: none; border: 1px solid var(--border); color: var(--accent);
+  border-radius: 4px; padding: 1px 6px; font-size: 10px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-compare-add:hover { background: rgba(88,166,255,0.15); border-color: var(--accent); }
+.btn-compare-add.added { color: var(--green); border-color: var(--green); cursor: default; }
+.compare-count-badge {
+  display: inline-block; background: var(--accent); color: #000;
+  border-radius: 8px; padding: 0 6px; font-size: 10px; font-weight: 600;
+  min-width: 16px; text-align: center;
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══ HEADER ═══ -->
+<header>
+  <h1><span>ACSL</span> Research Console</h1>
+  <span id="status-badge">connecting...</span>
+  <select id="profile-select" title="Switch profile"></select>
+  <span class="cache-badge" id="cache-badge" title="Activation cache entries">cache: 0</span>
+  <span id="model-info"></span>
+</header>
+
+<!-- ═══ TAB BAR ═══ -->
+<div class="tab-bar" id="tab-bar">
+  <button class="active" data-tab="testing">Testing</button>
+  <button data-tab="trajectory">Trajectory</button>
+  <button data-tab="compare">Compare</button>
+  <button data-tab="batch">Batch</button>
+  <button data-tab="tuning">Tuning</button>
+  <button data-tab="audit">Audit</button>
+  <button data-tab="intent-trace">Intent Trace</button>
+  <button data-tab="logit-lens">Logit Lens</button>
+  <button data-tab="gate2x2">Gate 2×2</button>
+  <button data-tab="history">History</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: TRAJECTORY — per-layer projection visualization                  -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-trajectory">
+  <div class="row">
+    <div class="col" style="max-width: 400px;">
+      <div class="card">
+        <h3>Prompt</h3>
+        <div class="input-group">
+          <label>Template</label>
+          <select id="traj-template"></select>
+        </div>
+        <div class="input-group">
+          <label>Prompt</label>
+          <textarea id="traj-prompt" rows="4" placeholder="Enter a prompt..."></textarea>
+        </div>
+        <div class="input-group">
+          <label>Benchmark prompts</label>
+          <select id="traj-bench-split">
+            <option value="">— load split —</option>
+            <option value="harm">Harmful</option>
+            <option value="harmless">Harmless</option>
+            <option value="wrapped">Wrapped</option>
+            <option value="custom">Custom</option>
+          </select>
+          <select id="traj-bench-prompt" class="mt-8" style="display:none;"></select>
+        </div>
+        <div class="flex gap-8 mt-8">
+          <button class="btn btn-primary" id="traj-run">Analyze</button>
+          <button class="btn" id="traj-export">Export JSON</button>
+        </div>
+      </div>
+
+      <!-- Risk readout -->
+      <div class="card" id="traj-risk-card" style="display:none;">
+        <h3>Risk Readout</h3>
+        <div id="traj-risk-readout"></div>
+      </div>
+
+      <!-- Gate decision -->
+      <div class="card" id="traj-gate-card" style="display:none;">
+        <h3>Gate Decision</h3>
+        <div id="traj-gate-readout"></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <div class="flex justify-between items-center mb-8">
+          <h3 style="margin-bottom:0;">Per-Layer Projection: &lt;h_ℓ, u&gt;</h3>
+          <div class="flex gap-8 items-center">
+            <label class="text-sm" style="margin-bottom:0;">
+              <input type="checkbox" id="traj-normalized" checked> Normalized
+            </label>
+            <button class="btn btn-sm" id="traj-export-svg">SVG</button>
+            <button class="btn btn-sm" id="traj-export-png">PNG</button>
+          </div>
+        </div>
+        <div class="chart-container" id="traj-chart">
+          <div class="text-dim text-sm" style="padding:40px; text-align:center;">
+            Run an analysis to see the trajectory
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: COMPARE — clean vs wrapped overlay                               -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-compare">
+  <div class="card">
+    <h3>A/B Trajectory Comparison</h3>
+    <div class="compare-split">
+      <div>
+        <div class="input-group">
+          <label>Prompt A (clean)</label>
+          <textarea id="cmp-prompt-a" rows="3" placeholder="Enter clean prompt..."></textarea>
+        </div>
+        <div class="input-group">
+          <label>Template A</label>
+          <select id="cmp-template-a"></select>
+        </div>
+      </div>
+      <div>
+        <div class="input-group">
+          <label>Prompt B (wrapped / variant)</label>
+          <textarea id="cmp-prompt-b" rows="3" placeholder="Enter wrapped prompt..."></textarea>
+        </div>
+        <div class="input-group">
+          <label>Template B</label>
+          <select id="cmp-template-b"></select>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-8 mt-8">
+      <button class="btn btn-primary" id="cmp-run">Compare Trajectories</button>
+      <button class="btn" id="cmp-copy-a-to-b">Copy A → B prompt</button>
+      <label class="text-sm flex items-center gap-8" style="margin-bottom:0;">
+        <input type="checkbox" id="cmp-normalized" checked> Normalized
+      </label>
+    </div>
+  </div>
+
+  <div class="card" id="cmp-result-card" style="display:none;">
+    <div class="flex justify-between items-center mb-8">
+      <h3 style="margin-bottom:0;">Overlay: A (blue) vs B (orange)</h3>
+      <div class="flex gap-8">
+        <button class="btn btn-sm" id="cmp-export-svg">SVG</button>
+        <button class="btn btn-sm" id="cmp-export-png">PNG</button>
+      </div>
+    </div>
+    <div class="chart-container" id="cmp-chart"></div>
+
+    <div class="compare-split mt-16">
+      <div id="cmp-risk-a"></div>
+      <div id="cmp-risk-b"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: TESTING — baseline vs gated comparison (the original compare)    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel active" id="panel-testing">
+  <!-- Controls bar -->
+  <div class="chat-controls">
+    <select id="test-template" style="width:auto;max-width:180px;"></select>
+    <select id="test-bench-split" style="width:auto;max-width:140px;">
+      <option value="">— load split —</option>
+      <option value="harm">Harmful</option>
+      <option value="harmless">Harmless</option>
+      <option value="wrapped">Wrapped</option>
+      <option value="custom">Custom</option>
+    </select>
+    <select id="test-bench-prompt" style="width:auto;max-width:250px;display:none;"></select>
+    <label class="toggle-switch" title="Enable model thinking (chain-of-thought)">
+      <input type="checkbox" id="test-thinking">
+      <span class="toggle-track"></span>
+      Thinking
+    </label>
+    <label class="toggle-switch" title="Show baseline vs gated side-by-side">
+      <input type="checkbox" id="test-compare-mode" checked>
+      <span class="toggle-track"></span>
+      Compare
+    </label>
+    <button class="btn btn-sm" id="test-clear-chat">Clear</button>
+  </div>
+
+  <!-- Chat area -->
+  <div class="chat-container">
+    <div class="chat-history" id="chat-history">
+      <div class="text-dim text-sm" style="text-align:center;padding:40px;">
+        Send a prompt to start testing. Shift+Enter for new lines.
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <textarea id="test-prompt" rows="2" placeholder="Enter a prompt... (Enter to send, Shift+Enter for new line)"></textarea>
+      <button class="btn btn-primary" id="test-send" style="height:42px;">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: BATCH — JSONL upload + batch readings                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-batch">
+  <div class="card">
+    <h3>Batch Processing</h3>
+    <div class="row">
+      <div class="col" style="max-width: 500px;">
+        <div class="input-group">
+          <label>Upload JSONL (one {"prompt": "..."} per line, optional "id", "template")</label>
+          <input type="file" id="batch-file" accept=".jsonl,.json,.txt">
+        </div>
+        <div class="input-group">
+          <label>Or paste prompts (one per line)</label>
+          <textarea id="batch-text" rows="6" placeholder="How to hack a computer&#10;What is the weather"></textarea>
+        </div>
+        <div class="flex gap-8 items-center">
+          <button class="btn btn-primary" id="batch-run">Run Batch</button>
+          <label class="text-sm flex items-center gap-8" style="margin-bottom:0;">
+            <input type="checkbox" id="batch-include-traj"> Include trajectories
+          </label>
+          <span id="batch-progress" class="text-sm text-dim"></span>
+        </div>
+      </div>
+      <div class="col">
+        <div id="batch-summary" style="display:none;" class="mb-8"></div>
+        <div class="flex gap-8 mb-8" id="batch-export-row" style="display:none;">
+          <button class="btn btn-sm" id="batch-export-json">Export JSON</button>
+          <button class="btn btn-sm" id="batch-export-csv">Export CSV</button>
+        </div>
+        <div class="batch-scroll" id="batch-results"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: TUNING — live threshold/band tuning                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-tuning">
+  <div class="row">
+    <div class="col" style="max-width: 500px;">
+      <div class="card">
+        <h3>Prompt (must be in activation cache)</h3>
+        <div class="input-group">
+          <label>Template</label>
+          <select id="tune-template"></select>
+        </div>
+        <div class="input-group">
+          <label>Prompt</label>
+          <textarea id="tune-prompt" rows="3" placeholder="Enter prompt (extract first on Trajectory tab)..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm" id="tune-read">Read</button>
+      </div>
+
+      <div class="card">
+        <h3>Gate Parameters</h3>
+        <div class="slider-row">
+          <label>Threshold</label>
+          <input type="range" id="tune-thr" min="-3" max="5" step="0.1" value="0">
+          <span class="slider-val" id="tune-thr-val">0.0</span>
+        </div>
+        <div class="slider-row">
+          <label>g_max</label>
+          <input type="range" id="tune-gmax" min="0" max="20" step="0.5" value="8">
+          <span class="slider-val" id="tune-gmax-val">8.0</span>
+        </div>
+        <div class="slider-row">
+          <label>K (iterations)</label>
+          <input type="range" id="tune-K" min="1" max="16" step="1" value="4">
+          <span class="slider-val" id="tune-K-val">4</span>
+        </div>
+        <div class="slider-row">
+          <label>Temperature</label>
+          <input type="range" id="tune-temp" min="0.1" max="10" step="0.1" value="1">
+          <span class="slider-val" id="tune-temp-val">1.0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card" id="tune-result-card" style="display:none;">
+        <h3>Live Read</h3>
+        <div id="tune-readout"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: AUDIT — history, stats, flagging                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-audit">
+  <div class="row">
+    <div class="col" style="max-width: 300px;">
+      <div class="card">
+        <h3>Stats</h3>
+        <div id="audit-stats"></div>
+        <div class="flex gap-8 mt-8">
+          <button class="btn btn-sm" id="audit-refresh">Refresh</button>
+          <button class="btn btn-sm" id="audit-export">Export JSONL</button>
+          <button class="btn btn-sm btn-danger" id="audit-clear">Clear</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Archives</h3>
+        <div id="archive-list"></div>
+        <div class="flex gap-8 mt-8">
+          <button class="btn btn-sm" id="archive-save">Archive Head</button>
+          <button class="btn btn-sm" id="archive-refresh">Refresh</button>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <h3>History</h3>
+        <div id="audit-history" style="max-height: 600px; overflow-y: auto;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-panel" id="panel-intent-trace">
+  <!-- ── Top bar: controls + results side-by-side ── -->
+  <div class="it-top-bar">
+    <div class="it-controls-col">
+      <div class="card" style="margin-bottom:0;">
+        <h3 id="it-title">Intent Trace</h3>
+        <div class="text-sm text-dim" id="it-axis-desc" style="margin:-4px 0 6px;">
+          Projects each token onto the intent direction (context-aware genuine-harm; label==intent) at every layer.
+        </div>
+        <div class="text-sm" id="it-coverage" style="margin:0 0 8px;"></div>
+        <div class="it-controls-grid">
+          <div class="input-group" style="margin-bottom:0;">
+            <label>Axis</label>
+            <select id="it-axis">
+              <option value="intent">Intent (context-aware harmful intent)</option>
+              <option value="actionability">Request Actionability (prompt asks for operational steps)</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin-bottom:0;">
+            <label>Mode</label>
+            <select id="it-mode">
+              <option value="single">Single prompt</option>
+              <option value="pair">Clean vs Wrapped pair</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin-bottom:0;">
+            <label>Template</label>
+            <select id="it-template"></select>
+          </div>
+          <div class="input-group" style="margin-bottom:0;">
+            <label>Benchmark</label>
+            <select id="it-bench-split" style="width:auto;">
+              <option value="">— split —</option>
+              <option value="harm">Harmful</option>
+              <option value="harmless">Harmless</option>
+              <option value="wrapped">Wrapped</option>
+            </select>
+            <select id="it-bench-prompt" class="mt-8" style="display:none;"></select>
+          </div>
+        </div>
+        <div id="it-single-inputs" style="margin-top:8px;">
+          <div class="input-group" style="margin-bottom:0;">
+            <label>Prompt</label>
+            <textarea id="it-prompt" rows="2" placeholder="Enter prompt..."></textarea>
+          </div>
+        </div>
+        <div id="it-pair-inputs" style="display:none;margin-top:8px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="input-group" style="margin-bottom:0;">
+              <label>Clean prompt (harmful request, no wrapper)</label>
+              <textarea id="it-prompt-clean" rows="2" placeholder="e.g. How to pick a lock"></textarea>
+            </div>
+            <div class="input-group" style="margin-bottom:0;">
+              <label>Wrapped prompt (same request + wrapper/jailbreak)</label>
+              <textarea id="it-prompt-wrapped" rows="2" placeholder="e.g. DAN preamble + how to pick a lock"></textarea>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-8" id="it-run">Compute Trace</button>
+      </div>
+    </div>
+    <div class="it-result-col">
+      <!-- Decision summary -->
+      <div class="card" id="it-decision-card" style="display:none;margin-bottom:8px;">
+        <h3>Decision Link</h3>
+        <div id="it-decision-info"></div>
+      </div>
+      <!-- Model response -->
+      <div class="card" id="it-response-card" style="display:none;margin-bottom:0;">
+        <div class="flex justify-between items-center mb-8">
+          <h3 style="margin-bottom:0;">Model Response</h3>
+          <div class="flex gap-8 items-center">
+            <span id="it-response-judge" class="badge"></span>
+            <span id="it-response-time" class="text-sm text-dim"></span>
+          </div>
+        </div>
+        <div id="it-response-text" class="response-box" style="max-height:200px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Result cards (full width) ── -->
+  <!-- Heatmap -->
+  <div class="card" id="it-heatmap-card" style="display:none;">
+    <div class="flex justify-between items-center mb-8">
+      <h3 style="margin-bottom:0;">Token × Layer Heatmap</h3>
+      <div class="flex gap-8 items-center">
+        <span id="it-heatmap-label" class="text-sm text-dim"></span>
+        <div class="view-toggle">
+          <button class="btn btn-sm active" id="it-view-2d">2D</button>
+          <button class="btn btn-sm" id="it-view-3d">3D</button>
+        </div>
+      </div>
+    </div>
+    <div id="it-heatmap" style="overflow-x:auto;"></div>
+    <div id="it-heatmap-3d" style="display:none;width:100%;height:500px;position:relative;border-radius:6px;overflow:hidden;background:#080a0f;">
+      <canvas id="it-3d-canvas"></canvas>
+      <div id="it-3d-tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);color:#fff;padding:4px 8px;border-radius:4px;font-size:11px;pointer-events:none;z-index:10;border:1px solid rgba(255,255,255,0.15);"></div>
+      <div style="position:absolute;bottom:8px;left:8px;font-size:10px;color:rgba(255,255,255,0.4);">Drag to rotate · Scroll to zoom · Hover for values</div>
+      <div id="it-3d-settings" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.75);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px 12px;display:flex;flex-direction:column;gap:6px;font-size:11px;color:rgba(255,255,255,0.8);min-width:160px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;gap:8px;">Label size <input type="range" id="it-3d-label-size" min="12" max="48" value="24" style="width:80px;"></label>
+        <label style="display:flex;justify-content:space-between;align-items:center;gap:8px;">Dot size <input type="range" id="it-3d-dot-size" min="3" max="20" value="10" style="width:80px;"></label>
+        <label style="display:flex;justify-content:space-between;align-items:center;gap:8px;">Label color <input type="color" id="it-3d-label-color" value="#aaaaaa" style="width:28px;height:20px;border:none;background:none;cursor:pointer;"></label>
+      </div>
+    </div>
+  </div>
+  <!-- Trajectory -->
+  <div class="card" id="it-trajectory-card" style="display:none;">
+    <h3>Depth Trajectory</h3>
+    <canvas id="it-trajectory-canvas" height="200" style="width:100%;"></canvas>
+  </div>
+  <!-- Band profile -->
+  <div class="card" id="it-band-card" style="display:none;">
+    <h3>Band-Layer Token Profile</h3>
+    <div id="it-band-profile" style="overflow-x:auto;"></div>
+  </div>
+  <!-- Pair: diff heatmap -->
+  <div class="card" id="it-diff-card" style="display:none;">
+    <h3>Difference Map (Clean − Wrapped)</h3>
+    <div id="it-diff-heatmap" style="overflow-x:auto;"></div>
+  </div>
+
+  <!-- cell-click logit-lens popover (shared with trace heatmaps) -->
+  <div id="it-cell-decode" class="cell-decode" style="display:none;"></div>
+</div><!-- #panel-intent-trace -->
+
+<!-- ═══ Logit Lens ═══════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-logit-lens">
+  <div class="card">
+    <h3>Logit Lens</h3>
+    <div class="text-sm text-dim" style="margin:-4px 0 10px;">
+      Decodes what the model would say next at every layer × position, in English —
+      each residual pushed through the final norm + unembedding, softmax in fp32.
+      The last layer's row is the model's real next-token distribution.
+    </div>
+    <div class="ll-controls">
+      <div class="input-group" style="margin-bottom:0;flex:1;min-width:260px;">
+        <label>Prompt</label>
+        <textarea id="ll-prompt" rows="2" placeholder="Enter prompt..."></textarea>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Template</label>
+        <select id="ll-template"></select>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Top-k</label>
+        <select id="ll-topk">
+          <option>1</option><option>3</option><option selected>5</option><option>8</option><option>10</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="ll-run" style="align-self:flex-end;">Run Lens</button>
+    </div>
+  </div>
+  <div class="card" id="ll-result-card" style="display:none;">
+    <div class="flex justify-between items-center mb-8">
+      <h3 style="margin-bottom:0;">Layer × Position decode</h3>
+      <span id="ll-label" class="text-sm text-dim"></span>
+    </div>
+    <div id="ll-grid" style="overflow:auto;max-height:70vh;"></div>
+  </div>
+</div>
+
+<!-- ═══ Gate 2×2 ═════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-gate2x2">
+  <div class="card">
+    <h3>Gate 2×2 — mixed read positions</h3>
+    <div class="text-sm text-dim" style="margin:-4px 0 10px;">
+      Intent read at <strong>t_inst</strong> (last user-content token) × Request Actionability read at
+      <strong>t_post-inst</strong> (last token). Exploratory: scores are z-scored across content
+      tokens, thresholds are uncalibrated. Not the eval gate. (Refusal is the baseline, never an axis.)
+    </div>
+    <div class="ll-controls">
+      <div class="input-group" style="margin-bottom:0;flex:1;min-width:260px;">
+        <label>Prompt</label>
+        <textarea id="g2-prompt" rows="2" placeholder="Enter prompt..."></textarea>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Template</label>
+        <select id="g2-template"></select>
+      </div>
+      <button class="btn btn-primary" id="g2-run" style="align-self:flex-end;">Score</button>
+    </div>
+    <div class="g2-thresholds">
+      <label>Intent threshold <span id="g2-thr-harm-val">0.00</span>
+        <input type="range" id="g2-thr-harm" min="-3" max="3" step="0.1" value="0"></label>
+      <label>Request-Action threshold <span id="g2-thr-action-val">0.00</span>
+        <input type="range" id="g2-thr-action" min="-3" max="3" step="0.1" value="0"></label>
+    </div>
+  </div>
+  <div class="g2-layout" id="g2-result" style="display:none;">
+    <div class="card">
+      <h3 style="margin-bottom:8px;">Quadrant</h3>
+      <div id="g2-plot-wrap"><canvas id="g2-plot" width="360" height="360"></canvas></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:8px;">Verdict</h3>
+      <div id="g2-verdict"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ History & Compare ════════════════════════════════════════════════ -->
+<div class="tab-panel" id="panel-history">
+  <div class="card">
+    <div class="flex justify-between items-center mb-8">
+      <h3 style="margin-bottom:0;">Trace History</h3>
+      <div class="flex gap-8 items-center">
+        <span id="hist-stats" class="text-sm text-dim"></span>
+        <button class="btn btn-sm" onclick="exportTraces('json')">Export JSON</button>
+        <button class="btn btn-sm" onclick="exportTraces('csv')">Export CSV</button>
+      </div>
+    </div>
+    <div class="hist-filter-bar">
+      <input type="text" id="hist-q" class="hist-search" placeholder="Search prompt / response / notes...">
+      <select id="hist-f-axis"><option value="">All axes</option></select>
+      <select id="hist-f-mode"><option value="">All modes</option></select>
+      <select id="hist-f-judge"><option value="">Any verdict</option></select>
+      <select id="hist-f-template"><option value="">Any template</option></select>
+      <select id="hist-f-profile"><option value="">Any profile</option></select>
+      <select id="hist-f-tag"><option value="">Any tag</option></select>
+      <label class="hist-star-filter"><input type="checkbox" id="hist-f-starred"> ★ only</label>
+      <button class="btn btn-sm" id="hist-clear-filters">Clear</button>
+    </div>
+    <div class="hist-bulk-bar" id="hist-bulk-bar" style="display:none;">
+      <span id="hist-sel-count">0 selected</span>
+      <button class="btn btn-sm" id="hist-bulk-compare">Add to compare</button>
+      <button class="btn btn-sm" id="hist-bulk-export">Export selected</button>
+      <button class="btn btn-sm btn-danger" id="hist-bulk-delete">Delete</button>
+      <button class="btn btn-sm" id="hist-sel-clear">Deselect all</button>
+    </div>
+    <div id="hist-table"></div>
+    <div class="hist-pager">
+      <button class="btn btn-sm" id="hist-prev">‹ Prev</button>
+      <span id="hist-page-info" class="text-sm text-dim"></span>
+      <button class="btn btn-sm" id="hist-next">Next ›</button>
+    </div>
+  </div>
+
+  <!-- Compare Dock (relocated from trace page) -->
+  <div class="compare-dock" id="it-compare-dock" style="display:none;">
+    <div class="compare-dock-header">
+      <div class="flex items-center gap-8">
+        <h3>Compare Traces</h3>
+        <span class="compare-count-badge" id="it-compare-count">0</span>
+      </div>
+      <div class="flex gap-8">
+        <button class="btn btn-sm" id="it-compare-clear">Clear All</button>
+      </div>
+    </div>
+    <div class="compare-dock-body cols-2" id="it-compare-body">
+    </div>
+    <div id="it-compare-diff" style="display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;background:var(--surface);padding:12px;">
+      <div class="flex justify-between items-center mb-8">
+        <h3 style="margin:0;font-size:13px;font-weight:600;">Diff Analysis</h3>
+        <div class="flex gap-8 items-center" style="font-size:11px;">
+          <label>A: <select id="diff-slot-a" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font-size:11px;"></select></label>
+          <span style="color:var(--text-dim);">vs</span>
+          <label>B: <select id="diff-slot-b" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 4px;font-size:11px;"></select></label>
+          <button class="btn btn-sm" onclick="runCompareDiff()" style="padding:2px 10px;">Compute</button>
+        </div>
+      </div>
+      <div id="diff-stats" style="font-size:11px;color:var(--text-dim);margin-bottom:8px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <h4 style="margin:0 0 4px;font-size:12px;font-weight:500;">Difference Heatmap (A − B)</h4>
+          <div id="diff-heatmap-container" style="overflow:auto;max-height:500px;"></div>
+        </div>
+        <div>
+          <h4 style="margin:0 0 4px;font-size:12px;font-weight:500;">Per-Layer Similarity</h4>
+          <canvas id="diff-similarity-canvas" height="220" style="width:100%;"></canvas>
+          <div id="diff-top-divergent" style="margin-top:8px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- #panel-history -->
+
+</div><!-- .app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// ACSL Research Console — JS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const API = '';
+let _lastTrajData = null;
+let _lastCmpData = null;
+let _lastTestData = null;
+let _lastBatchData = null;
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+document.getElementById('tab-bar').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-tab]');
+  if (!btn) return;
+  document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  if (btn.dataset.tab === 'history') loadHistory();
+});
+
+// ── Status polling ────────────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch(API + '/api/status');
+    const d = await r.json();
+    const badge = document.getElementById('status-badge');
+    badge.textContent = d.status;
+    badge.className = d.status;
+
+    const info = document.getElementById('model-info');
+    if (d.status === 'loaded') {
+      info.textContent = `${d.model_name || '?'} · L${d.layer ?? '?'} · ${d.device} · ${d.n_layers} layers · ${d.n_directions} dirs`;
+      document.getElementById('cache-badge').textContent = `cache: ${d.activation_cache_size || 0}`;
+      _axisCoverage = d.axis_coverage || null;
+      updateAxisCoverage();
+    } else if (d.status === 'unloaded') {
+      info.textContent = 'model offloaded — GPU free · select a profile to reload';
+      const sel = document.getElementById('profile-select');
+      if (sel && sel.value !== '__unload__') sel.value = '__unload__';
+    } else if (d.status === 'error') {
+      info.textContent = d.error || 'error';
+    }
+  } catch(e) { /* offline */ }
+}
+
+// ── Profiles ──────────────────────────────────────────────────────────────
+async function loadProfiles() {
+  try {
+    const r = await fetch(API + '/api/profiles');
+    const profiles = await r.json();
+    const sel = document.getElementById('profile-select');
+    sel.innerHTML = '';
+    profiles.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.name;
+      o.textContent = p.name + (p.active ? ' ●' : '') + (p.head_exists ? '' : ' (no head)');
+      if (p.active) o.selected = true;
+      sel.appendChild(o);
+    });
+    // Offload option — frees all model weights from the GPU (server stays up).
+    const u = document.createElement('option');
+    u.value = '__unload__';
+    u.textContent = '⏏ Unload — free GPU';
+    sel.appendChild(u);
+  } catch(e) {}
+}
+
+document.getElementById('profile-select').addEventListener('change', async e => {
+  if (e.target.value === '__unload__') {
+    if (!confirm('Unload the model and free all ACSL GPU memory?\nThe server stays up — re-select a profile to reload.')) {
+      loadProfiles();   // revert the dropdown to the active profile
+      return;
+    }
+    await fetch(API + '/api/unload', { method: 'POST' });
+    pollStatus();
+    return;
+  }
+  await fetch(API + '/api/reload', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({profile: e.target.value})
+  });
+  pollStatus();
+});
+
+// ── Templates ─────────────────────────────────────────────────────────────
+let _templates = [];
+async function loadTemplates() {
+  try {
+    const r = await fetch(API + '/api/templates');
+    _templates = await r.json();
+    const selectors = ['traj-template', 'cmp-template-a', 'cmp-template-b',
+                       'test-template', 'tune-template', 'it-template',
+                       'll-template', 'g2-template'];
+    selectors.forEach(id => {
+      const sel = document.getElementById(id);
+      sel.innerHTML = '';
+      _templates.forEach(t => {
+        const o = document.createElement('option');
+        o.value = t.key;
+        o.textContent = t.key + (t.builtin ? '' : ' (custom)');
+        sel.appendChild(o);
+      });
+    });
+  } catch(e) {}
+}
+
+// ── Benchmark prompts ─────────────────────────────────────────────────────
+async function loadBenchPrompts(splitSelect, promptSelect) {
+  const split = splitSelect.value;
+  if (!split) { promptSelect.style.display = 'none'; return; }
+  try {
+    const r = await fetch(API + '/api/data/' + split);
+    const prompts = await r.json();
+    if (!Array.isArray(prompts)) { promptSelect.style.display = 'none'; return; }
+    promptSelect.innerHTML = '<option value="">— select —</option>';
+    prompts.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.prompt;
+      o.textContent = (p.prompt.length > 80 ? p.prompt.slice(0, 80) + '...' : p.prompt);
+      promptSelect.appendChild(o);
+    });
+    promptSelect.style.display = 'block';
+  } catch(e) { promptSelect.style.display = 'none'; }
+}
+
+// Trajectory bench prompts
+{
+  const splitSel = document.getElementById('traj-bench-split');
+  const promptSel = document.getElementById('traj-bench-prompt');
+  splitSel.addEventListener('change', () => loadBenchPrompts(splitSel, promptSel));
+  promptSel.addEventListener('change', () => {
+    if (promptSel.value) document.getElementById('traj-prompt').value = promptSel.value;
+  });
+}
+// Testing bench prompts (split select only — prompt select handled in chat section)
+document.getElementById('test-bench-split').addEventListener('change', () => {
+  loadBenchPrompts(document.getElementById('test-bench-split'), document.getElementById('test-bench-prompt'));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHART DRAWING (SVG)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function drawTrajectory(container, trajectories, opts = {}) {
+  const W = opts.width || 800, H = opts.height || 320;
+  const pad = {top: 30, right: 40, bottom: 50, left: 60};
+  const useNorm = opts.normalized !== false;
+  const headLayer = opts.headLayer;
+  const colors = opts.colors || ['#58a6ff'];
+  const labels = opts.labels || ['projection'];
+
+  const allPts = trajectories.flat();
+  if (!allPts.length) { container.innerHTML = '<div class="text-dim text-sm" style="padding:40px;text-align:center;">No trajectory data</div>'; return; }
+
+  const layers = allPts.map(p => p.layer);
+  const vals = allPts.map(p => useNorm ? p.projection_normalized : p.projection);
+  const xMin = Math.min(...layers), xMax = Math.max(...layers);
+  let yMin = Math.min(...vals, 0), yMax = Math.max(...vals, 0);
+  const yPad = (yMax - yMin) * 0.1 || 1;
+  yMin -= yPad; yMax += yPad;
+
+  const sx = l => pad.left + (l - xMin) / (xMax - xMin || 1) * (W - pad.left - pad.right);
+  const sy = v => pad.top + (1 - (v - yMin) / (yMax - yMin || 1)) * (H - pad.top - pad.bottom);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;">`;
+
+  // Grid lines
+  const nTicks = 5;
+  for (let i = 0; i <= nTicks; i++) {
+    const v = yMin + (yMax - yMin) * i / nTicks;
+    const y = sy(v);
+    svg += `<line x1="${pad.left}" y1="${y}" x2="${W - pad.right}" y2="${y}" stroke="#30363d" stroke-width="0.5"/>`;
+    svg += `<text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" fill="#8b949e" font-size="10">${v.toFixed(1)}</text>`;
+  }
+
+  // X axis labels
+  const step = Math.max(1, Math.ceil((xMax - xMin) / 15));
+  for (let l = xMin; l <= xMax; l += step) {
+    svg += `<text x="${sx(l)}" y="${H - pad.bottom + 18}" text-anchor="middle" fill="#8b949e" font-size="10">${l}</text>`;
+  }
+  svg += `<text x="${W / 2}" y="${H - 5}" text-anchor="middle" fill="#8b949e" font-size="11">Layer</text>`;
+  svg += `<text x="12" y="${H / 2}" text-anchor="middle" fill="#8b949e" font-size="11" transform="rotate(-90 12 ${H/2})">${useNorm ? '⟨h_ℓ, u⟩ (z-scored)' : '⟨h_ℓ, u⟩ (raw)'}</text>`;
+
+  // Zero line
+  if (yMin < 0 && yMax > 0) {
+    svg += `<line x1="${pad.left}" y1="${sy(0)}" x2="${W - pad.right}" y2="${sy(0)}" stroke="#484f58" stroke-width="1" stroke-dasharray="4,3"/>`;
+  }
+
+  // Head layer marker
+  if (headLayer != null && headLayer >= xMin && headLayer <= xMax) {
+    svg += `<line x1="${sx(headLayer)}" y1="${pad.top}" x2="${sx(headLayer)}" y2="${H - pad.bottom}" stroke="#bc8cff" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.6"/>`;
+    svg += `<text x="${sx(headLayer)}" y="${pad.top - 6}" text-anchor="middle" fill="#bc8cff" font-size="10">head L${headLayer}</text>`;
+  }
+
+  // Trajectory lines and dots
+  trajectories.forEach((traj, ti) => {
+    const c = colors[ti % colors.length];
+    if (traj.length > 1) {
+      const pathD = traj.map((p, i) => {
+        const x = sx(p.layer), y = sy(useNorm ? p.projection_normalized : p.projection);
+        return (i === 0 ? 'M' : 'L') + x + ',' + y;
+      }).join(' ');
+      svg += `<path d="${pathD}" fill="none" stroke="${c}" stroke-width="2" opacity="0.85"/>`;
+    }
+    traj.forEach(p => {
+      const x = sx(p.layer), y = sy(useNorm ? p.projection_normalized : p.projection);
+      svg += `<circle cx="${x}" cy="${y}" r="3" fill="${c}" stroke="${c}" stroke-width="1">`;
+      svg += `<title>L${p.layer}: ${(useNorm ? p.projection_normalized : p.projection).toFixed(4)}</title>`;
+      svg += `</circle>`;
+    });
+  });
+
+  // Legend
+  if (trajectories.length > 1) {
+    trajectories.forEach((_, ti) => {
+      const lx = W - pad.right - 100, ly = pad.top + 16 * ti + 10;
+      svg += `<rect x="${lx}" y="${ly - 6}" width="12" height="3" fill="${colors[ti % colors.length]}"/>`;
+      svg += `<text x="${lx + 16}" y="${ly}" fill="#e6edf3" font-size="11">${labels[ti] || 'trace ' + ti}</text>`;
+    });
+  }
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+function exportSVG(container, filename) {
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+  const blob = new Blob([svg.outerHTML], {type: 'image/svg+xml'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+function exportPNG(container, filename) {
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const canvas = document.createElement('canvas');
+  const vb = svg.getAttribute('viewBox').split(' ').map(Number);
+  canvas.width = vb[2] * 2; canvas.height = vb[3] * 2;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    });
+  };
+  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RISK / GATE RENDERING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderRiskBar(risk) {
+  if (!risk) return '';
+  const prob = risk.risk_prob;
+  const logit = risk.risk_logit;
+  const color = prob >= 0.7 ? 'var(--red)' : prob >= 0.4 ? 'var(--orange)' : 'var(--green)';
+  return `
+    <div class="flex justify-between items-center mb-8">
+      <span class="mono text-sm">risk_logit: <strong>${logit.toFixed(3)}</strong></span>
+      <span class="mono text-sm">risk_prob: <strong style="color:${color}">${prob.toFixed(3)}</strong></span>
+      <span class="text-sm text-dim">L${risk.layer}</span>
+    </div>
+    <div class="risk-bar">
+      <div class="risk-bar-fill" style="width:${Math.min(prob * 100, 100)}%;background:${color};"></div>
+    </div>
+    <div class="risk-bar-markers">
+      <span class="risk-bar-marker" style="left:50%">0.5</span>
+    </div>
+    <div class="text-sm text-dim mt-8">logits: [${risk.logits.map(l => l.toFixed(3)).join(', ')}]</div>
+  `;
+}
+
+function renderGate(gate) {
+  if (!gate) return '';
+  const a = gate.action;
+  const cls = a === 'answer' ? 'gate-answer' : a === 'steer' ? 'gate-steer'
+    : a === 'flag' ? 'gate-flag' : 'gate-refuse';
+  return `
+    <div class="gate-box ${cls}">${a.toUpperCase()}</div>
+    <div class="text-sm mt-8">
+      r* = <strong class="mono">${gate.r_star.toFixed(4)}</strong> ·
+      safe = <strong class="mono">${gate.safe}</strong>
+    </div>
+    <div class="text-sm text-dim mt-8">
+      thr=${gate.params.thr} · g_max=${gate.params.g_max} · K=${gate.params.K} · T=${gate.params.temperature}
+    </div>
+  `;
+}
+
+function categoryBadge(cat) {
+  const map = {
+    'acsl_caught': 'badge-green', 'correct_allow': 'badge-green',
+    'already_safe': 'badge-cyan', 'baseline_over_refused': 'badge-cyan',
+    'acsl_missed': 'badge-red', 'acsl_weakened': 'badge-orange',
+    'acsl_over_refused': 'badge-orange', 'both_over_refused': 'badge-yellow',
+  };
+  return `<span class="badge ${map[cat] || 'badge-purple'}">${cat}</span>`;
+}
+
+function judgeBadge(judge) {
+  if (judge === 'refusal' || judge === 'blocked') return '<span class="badge badge-orange">' + judge + '</span>';
+  if (judge === 'compliance') return '<span class="badge badge-green">compliance</span>';
+  return '<span class="badge badge-purple">' + (judge || 'n/a') + '</span>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB: TRAJECTORY
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('traj-run').addEventListener('click', async () => {
+  const prompt = document.getElementById('traj-prompt').value.trim();
+  if (!prompt) return;
+  const template = document.getElementById('traj-template').value;
+  const btn = document.getElementById('traj-run');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+  try {
+    const r = await fetch(API + '/api/trajectory', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt, template})
+    });
+    const d = await r.json();
+    if (d.error) { alert(d.error); return; }
+    _lastTrajData = d;
+
+    const useNorm = document.getElementById('traj-normalized').checked;
+    drawTrajectory(document.getElementById('traj-chart'), [d.trajectory], {
+      normalized: useNorm, headLayer: d.head_layer
+    });
+
+    // Risk card
+    const riskCard = document.getElementById('traj-risk-card');
+    if (d.risk) {
+      document.getElementById('traj-risk-readout').innerHTML = renderRiskBar(d.risk);
+      riskCard.style.display = 'block';
+    } else { riskCard.style.display = 'none'; }
+
+    // Gate card
+    const gateCard = document.getElementById('traj-gate-card');
+    if (d.gate) {
+      document.getElementById('traj-gate-readout').innerHTML = renderGate(d.gate);
+      gateCard.style.display = 'block';
+    } else { gateCard.style.display = 'none'; }
+
+    pollStatus();
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Analyze'; }
+});
+
+document.getElementById('traj-normalized').addEventListener('change', () => {
+  if (!_lastTrajData) return;
+  drawTrajectory(document.getElementById('traj-chart'), [_lastTrajData.trajectory], {
+    normalized: document.getElementById('traj-normalized').checked,
+    headLayer: _lastTrajData.head_layer
+  });
+});
+
+document.getElementById('traj-export').addEventListener('click', () => {
+  if (!_lastTrajData) return;
+  const blob = new Blob([JSON.stringify(_lastTrajData, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'acsl_trajectory.json'; a.click();
+});
+
+document.getElementById('traj-export-svg').addEventListener('click', () => exportSVG(document.getElementById('traj-chart'), 'acsl_trajectory.svg'));
+document.getElementById('traj-export-png').addEventListener('click', () => exportPNG(document.getElementById('traj-chart'), 'acsl_trajectory.png'));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB: COMPARE
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('cmp-copy-a-to-b').addEventListener('click', () => {
+  document.getElementById('cmp-prompt-b').value = document.getElementById('cmp-prompt-a').value;
+});
+
+document.getElementById('cmp-run').addEventListener('click', async () => {
+  const pa = document.getElementById('cmp-prompt-a').value.trim();
+  const pb = document.getElementById('cmp-prompt-b').value.trim();
+  if (!pa || !pb) { alert('Both prompts required'); return; }
+  const ta = document.getElementById('cmp-template-a').value;
+  const tb = document.getElementById('cmp-template-b').value;
+  const btn = document.getElementById('cmp-run');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Comparing...';
+
+  try {
+    const r = await fetch(API + '/api/compare_trajectories', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt_a: pa, prompt_b: pb, template_a: ta, template_b: tb})
+    });
+    const d = await r.json();
+    if (d.error) { alert(d.error); return; }
+    _lastCmpData = d;
+
+    const card = document.getElementById('cmp-result-card');
+    card.style.display = 'block';
+
+    const useNorm = document.getElementById('cmp-normalized').checked;
+    drawTrajectory(document.getElementById('cmp-chart'),
+      [d.trajectory_a, d.trajectory_b],
+      { normalized: useNorm, headLayer: d.head_layer,
+        colors: ['#58a6ff', '#d29922'],
+        labels: ['A (clean)', 'B (wrapped)'] }
+    );
+
+    document.getElementById('cmp-risk-a').innerHTML = d.risk_a
+      ? '<strong class="text-sm">A — Risk</strong>' + renderRiskBar(d.risk_a) + (d.gate_a ? renderGate(d.gate_a) : '')
+      : '<span class="text-dim text-sm">No head loaded</span>';
+    document.getElementById('cmp-risk-b').innerHTML = d.risk_b
+      ? '<strong class="text-sm">B — Risk</strong>' + renderRiskBar(d.risk_b) + (d.gate_b ? renderGate(d.gate_b) : '')
+      : '';
+
+    pollStatus();
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Compare Trajectories'; }
+});
+
+document.getElementById('cmp-normalized').addEventListener('change', () => {
+  if (!_lastCmpData) return;
+  drawTrajectory(document.getElementById('cmp-chart'),
+    [_lastCmpData.trajectory_a, _lastCmpData.trajectory_b],
+    { normalized: document.getElementById('cmp-normalized').checked,
+      headLayer: _lastCmpData.head_layer,
+      colors: ['#58a6ff', '#d29922'],
+      labels: ['A (clean)', 'B (wrapped)'] }
+  );
+});
+
+document.getElementById('cmp-export-svg').addEventListener('click', () => exportSVG(document.getElementById('cmp-chart'), 'acsl_compare.svg'));
+document.getElementById('cmp-export-png').addEventListener('click', () => exportPNG(document.getElementById('cmp-chart'), 'acsl_compare.png'));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB: TESTING (chat interface with thinking + compare toggle)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const chatHistory = document.getElementById('chat-history');
+let _chatStarted = false;
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function parseThinking(text) {
+  const m = text.match(/^<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/);
+  if (m) return { thinking: m[1].trim(), response: m[2].trim() };
+  return { thinking: null, response: text };
+}
+
+function addChatMessage(role, content, meta) {
+  if (!_chatStarted) {
+    chatHistory.innerHTML = '';
+    _chatStarted = true;
+  }
+  const div = document.createElement('div');
+  div.className = `chat-msg chat-msg-${role}`;
+
+  let html = '';
+  if (role === 'user') {
+    html += `<div class="chat-msg-label">You</div>`;
+    html += `<div>${escHtml(content)}</div>`;
+  } else if (role === 'assistant') {
+    const parsed = parseThinking(content);
+    html += `<div class="chat-msg-label">Model`;
+    if (meta?.mode) html += ` <span class="badge badge-${meta.mode === 'acsl_gated' ? 'green' : 'purple'}" style="font-size:10px;">${meta.mode}</span>`;
+    if (meta?.judge) html += ` ${judgeBadge(meta.judge)}`;
+    html += `</div>`;
+    if (parsed.thinking) {
+      html += `<details class="chat-thinking"><summary>Thinking</summary><div style="margin-top:6px;">${escHtml(parsed.thinking)}</div></details>`;
+    }
+    html += `<div>${escHtml(parsed.response)}</div>`;
+    if (meta) {
+      html += `<div class="chat-msg-meta">`;
+      if (meta.gen_time_s != null) html += `<span>${meta.gen_time_s}s</span>`;
+      if (meta.risk_prob != null) {
+        const c = meta.risk_prob >= 0.7 ? 'var(--red)' : meta.risk_prob >= 0.4 ? 'var(--orange)' : 'var(--green)';
+        html += `<span>risk: <strong style="color:${c}">${meta.risk_prob.toFixed(3)}</strong></span>`;
+      }
+      if (meta.r_star != null) html += `<span>r*=${meta.r_star.toFixed(3)}</span>`;
+      if (meta.action) html += `<span>action: <strong>${meta.action}</strong></span>`;
+      if (meta.safe != null) html += `<span>safe: ${meta.safe}</span>`;
+      html += `</div>`;
+    }
+  } else if (role === 'compare') {
+    // Side-by-side compare result
+    html += `<div class="chat-msg-label">Comparison ${meta?.category ? categoryBadge(meta.category) : ''}</div>`;
+    if (meta?.risk) html += renderRiskBar(meta.risk);
+    html += `<div class="compare-split" style="margin-top:8px;">`;
+    html += `<div><div class="flex justify-between items-center mb-8"><strong class="text-sm">Baseline</strong>${judgeBadge(meta?.baseline_judge)}</div><div class="response-box">${escHtml(meta?.baseline_resp || '')}</div></div>`;
+    html += `<div><div class="flex justify-between items-center mb-8"><strong class="text-sm">ACSL-Gated</strong>${judgeBadge(meta?.gated_judge)}</div><div class="response-box">${escHtml(meta?.gated_resp || '')}</div></div>`;
+    html += `</div>`;
+    if (meta?.gated_thinking) {
+      html += `<details class="chat-thinking" style="margin-top:8px;"><summary>Gated Thinking</summary><div style="margin-top:6px;">${escHtml(meta.gated_thinking)}</div></details>`;
+    }
+    html += `<div class="chat-msg-meta">`;
+    if (meta?.baseline_time) html += `<span>baseline: ${meta.baseline_time}s</span>`;
+    if (meta?.gated_time) html += `<span>gated: ${meta.gated_time}s</span>`;
+    if (meta?.r_star != null) html += `<span>r*=${meta.r_star.toFixed(3)}</span>`;
+    if (meta?.action) html += `<span>action: ${meta.action}</span>`;
+    html += `</div>`;
+  } else if (role === 'system') {
+    div.className = 'chat-msg';
+    div.style.cssText = 'text-align:center;color:var(--text-dim);font-size:12px;background:none;border:none;';
+    html = content;
+  }
+
+  div.innerHTML = html;
+  chatHistory.appendChild(div);
+  chatHistory.scrollTop = chatHistory.scrollHeight;
+  return div;
+}
+
+function addSpinner() {
+  const div = document.createElement('div');
+  div.className = 'chat-msg chat-msg-assistant';
+  div.id = 'chat-spinner';
+  div.innerHTML = '<div class="chat-msg-label">Model</div><span class="spinner"></span> Generating...';
+  chatHistory.appendChild(div);
+  chatHistory.scrollTop = chatHistory.scrollHeight;
+  return div;
+}
+
+function removeSpinner() {
+  const s = document.getElementById('chat-spinner');
+  if (s) s.remove();
+}
+
+async function sendChat() {
+  const input = document.getElementById('test-prompt');
+  const prompt = input.value.trim();
+  if (!prompt) return;
+
+  const template = document.getElementById('test-template').value;
+  const thinking = document.getElementById('test-thinking').checked;
+  const compareMode = document.getElementById('test-compare-mode').checked;
+  const sendBtn = document.getElementById('test-send');
+
+  input.value = '';
+  input.style.height = 'auto';
+  sendBtn.disabled = true;
+
+  addChatMessage('user', prompt);
+
+  if (compareMode) {
+    addSpinner();
+    try {
+      const r = await fetch(API + '/api/compare', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({prompt, template, thinking})
+      });
+      const d = await r.json();
+      removeSpinner();
+      if (d.error) { addChatMessage('system', 'Error: ' + d.error); return; }
+      _lastTestData = d;
+
+      const baselineParsed = parseThinking(d.baseline?.response || '');
+      const gatedParsed = parseThinking(d.gated?.raw_response || d.gated?.gated_response || '');
+
+      addChatMessage('compare', null, {
+        category: d.category,
+        risk: d.risk,
+        baseline_resp: baselineParsed.response,
+        baseline_judge: d.baseline?.judge,
+        baseline_time: d.baseline?.gen_time_s,
+        gated_resp: gatedParsed.response,
+        gated_thinking: gatedParsed.thinking,
+        gated_judge: d.gated?.judge,
+        gated_time: d.gated?.gen_time_s,
+        r_star: d.gated?.r_star,
+        action: d.gated?.action,
+      });
+      pollStatus();
+    } catch(e) { removeSpinner(); addChatMessage('system', 'Error: ' + e.message); }
+    finally { sendBtn.disabled = false; }
+  } else {
+    addSpinner();
+    try {
+      const r = await fetch(API + '/api/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({prompt, template, thinking})
+      });
+      const d = await r.json();
+      removeSpinner();
+      if (d.error) { addChatMessage('system', 'Error: ' + d.error); return; }
+
+      addChatMessage('assistant', d.response, {
+        mode: d.mode,
+        judge: d.judge,
+        gen_time_s: d.gen_time_s,
+        risk_prob: d.risk?.risk_prob,
+      });
+      pollStatus();
+    } catch(e) { removeSpinner(); addChatMessage('system', 'Error: ' + e.message); }
+    finally { sendBtn.disabled = false; }
+  }
+}
+
+// Send button
+document.getElementById('test-send').addEventListener('click', sendChat);
+
+// Enter to send, Shift+Enter for newline
+document.getElementById('test-prompt').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+
+// Auto-grow textarea
+document.getElementById('test-prompt').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+});
+
+// Clear chat
+document.getElementById('test-clear-chat').addEventListener('click', () => {
+  chatHistory.innerHTML = '<div class="text-dim text-sm" style="text-align:center;padding:40px;">Send a prompt to start testing. Shift+Enter for new lines.</div>';
+  _chatStarted = false;
+});
+
+// Bench prompt loader
+document.getElementById('test-bench-prompt').addEventListener('change', function() {
+  if (this.value) document.getElementById('test-prompt').value = this.value;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB: BATCH
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('batch-run').addEventListener('click', async () => {
+  let prompts = [];
+
+  // From file
+  const file = document.getElementById('batch-file').files[0];
+  if (file) {
+    const text = await file.text();
+    text.split('\n').forEach(line => {
+      line = line.trim();
+      if (!line) return;
+      try {
+        prompts.push(JSON.parse(line));
+      } catch(e) {
+        prompts.push({prompt: line});
+      }
+    });
+  } else {
+    // From textarea
+    const text = document.getElementById('batch-text').value;
+    text.split('\n').forEach((line, i) => {
+      line = line.trim();
+      if (line) prompts.push({prompt: line, id: 'line-' + i});
+    });
+  }
+
+  if (!prompts.length) { alert('No prompts'); return; }
+
+  const btn = document.getElementById('batch-run');
+  btn.disabled = true;
+  document.getElementById('batch-progress').textContent = `Processing ${prompts.length} prompts...`;
+
+  try {
+    const r = await fetch(API + '/api/batch', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        prompts,
+        include_trajectory: document.getElementById('batch-include-traj').checked
+      })
+    });
+    const d = await r.json();
+    if (d.error) { alert(d.error); return; }
+    _lastBatchData = d;
+
+    document.getElementById('batch-progress').textContent =
+      `Done: ${d.count} prompts in ${d.batch_time_s}s`;
+
+    // Summary
+    const summary = document.getElementById('batch-summary');
+    summary.style.display = 'block';
+    const actions = {};
+    d.results.forEach(r => {
+      const a = r.gate?.action || 'no_head';
+      actions[a] = (actions[a] || 0) + 1;
+    });
+    summary.innerHTML = Object.entries(actions).map(([a, c]) =>
+      `<span class="badge badge-purple" style="margin-right:6px;">${a}: ${c}</span>`
+    ).join('');
+
+    // Table
+    document.getElementById('batch-export-row').style.display = 'flex';
+    const container = document.getElementById('batch-results');
+    let html = '<table class="batch-table"><thead><tr>';
+    html += '<th>#</th><th>ID</th><th>Prompt</th><th>Risk</th><th>Action</th><th>r*</th>';
+    html += '</tr></thead><tbody>';
+    d.results.forEach((r, i) => {
+      const prob = r.risk?.risk_prob;
+      const color = prob == null ? '' : prob >= 0.7 ? 'color:var(--red)' : prob >= 0.4 ? 'color:var(--orange)' : 'color:var(--green)';
+      html += `<tr>`;
+      html += `<td>${i + 1}</td>`;
+      html += `<td class="mono">${r.id || ''}</td>`;
+      html += `<td>${(r.prompt || '').slice(0, 60)}${(r.prompt || '').length > 60 ? '...' : ''}</td>`;
+      html += `<td class="mono" style="${color}">${prob != null ? prob.toFixed(3) : r.error || 'n/a'}</td>`;
+      html += `<td>${r.gate?.action || 'n/a'}</td>`;
+      html += `<td class="mono">${r.gate?.r_star != null ? r.gate.r_star.toFixed(3) : ''}</td>`;
+      html += `</tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    pollStatus();
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById('batch-export-json').addEventListener('click', () => {
+  if (!_lastBatchData) return;
+  const blob = new Blob([JSON.stringify(_lastBatchData, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'acsl_batch.json'; a.click();
+});
+
+document.getElementById('batch-export-csv').addEventListener('click', () => {
+  if (!_lastBatchData) return;
+  let csv = 'id,prompt,template,risk_logit,risk_prob,action,r_star,safe\n';
+  _lastBatchData.results.forEach(r => {
+    const esc = s => '"' + String(s || '').replace(/"/g, '""') + '"';
+    csv += [
+      r.id, esc(r.prompt), r.template,
+      r.risk?.risk_logit ?? '', r.risk?.risk_prob ?? '',
+      r.gate?.action ?? '', r.gate?.r_star ?? '', r.gate?.safe ?? ''
+    ].join(',') + '\n';
+  });
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'acsl_batch.csv'; a.click();
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB: TUNING (live re-read with sliders)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const tuneSliders = ['thr', 'gmax', 'K', 'temp'];
+tuneSliders.forEach(key => {
+  const slider = document.getElementById('tune-' + key);
+  const valSpan = document.getElementById('tune-' + key + '-val');
+  slider.addEventListener('input', () => {
+    valSpan.textContent = slider.value;
+    debouncedReread();
+  });
+});
+
+let _tuneDebounce = null;
+function debouncedReread() {
+  clearTimeout(_tuneDebounce);
+  _tuneDebounce = setTimeout(doReread, 150);
+}
+
+async function doReread() {
+  const prompt = document.getElementById('tune-prompt').value.trim();
+  if (!prompt) return;
+  const template = document.getElementById('tune-template').value;
+
+  try {
+    const r = await fetch(API + '/api/reread', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        prompt, template,
+        thr: parseFloat(document.getElementById('tune-thr').value),
+        g_max: parseFloat(document.getElementById('tune-gmax').value),
+        K: parseInt(document.getElementById('tune-K').value),
+        temperature: parseFloat(document.getElementById('tune-temp').value),
+      })
+    });
+    const d = await r.json();
+    if (d.error) {
+      document.getElementById('tune-readout').innerHTML =
+        `<div class="text-sm" style="color:var(--red);">${d.error}</div>`;
+      document.getElementById('tune-result-card').style.display = 'block';
+      return;
+    }
+
+    const card = document.getElementById('tune-result-card');
+    card.style.display = 'block';
+    let html = '';
+    if (d.risk) html += renderRiskBar(d.risk);
+    if (d.gate) html += '<div class="mt-8">' + renderGate(d.gate) + '</div>';
+    document.getElementById('tune-readout').innerHTML = html;
+  } catch(e) { /* ignore during rapid sliding */ }
+}
+
+document.getElementById('tune-read').addEventListener('click', doReread);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB: AUDIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadAuditStats() {
+  try {
+    const r = await fetch(API + '/api/audit/stats');
+    const d = await r.json();
+    let html = `<div class="text-sm mb-8">Total: <strong>${d.total}</strong></div>`;
+    html += '<div class="text-sm mb-8"><strong>Categories:</strong></div>';
+    Object.entries(d.categories || {}).forEach(([k, v]) => {
+      html += `<div class="text-sm">&nbsp;&nbsp;${categoryBadge(k)} ${v}</div>`;
+    });
+    html += '<div class="text-sm mt-8 mb-8"><strong>Flags:</strong></div>';
+    Object.entries(d.flags || {}).forEach(([k, v]) => {
+      html += `<div class="text-sm">&nbsp;&nbsp;${k}: ${v}</div>`;
+    });
+    document.getElementById('audit-stats').innerHTML = html;
+  } catch(e) {}
+}
+
+async function loadAuditHistory() {
+  try {
+    const r = await fetch(API + '/api/audit');
+    const entries = await r.json();
+    const container = document.getElementById('audit-history');
+    if (!entries.length) { container.innerHTML = '<div class="text-dim text-sm">No entries yet</div>'; return; }
+    let html = '';
+    entries.slice().reverse().forEach(e => {
+      html += `<div class="audit-entry">
+        <div style="min-width:120px;">
+          <div class="text-sm">${e.timestamp ? e.timestamp.slice(0, 19) : ''}</div>
+          ${categoryBadge(e.category)}
+          ${e.manual_flag ? `<div class="text-sm mt-8">flag: <strong>${e.manual_flag}</strong></div>` : ''}
+        </div>
+        <div style="flex:1;">
+          <div class="text-sm text-dim">${(e.prompt || '').slice(0, 100)}</div>
+          <div class="text-sm mt-8">
+            risk: ${e.risk ? e.risk.risk_prob.toFixed(3) : 'n/a'} ·
+            baseline: ${e.baseline?.judge || 'n/a'} ·
+            gated: ${e.gated?.judge || 'n/a'}
+            ${e.gated?.r_star != null ? ' · r*=' + e.gated.r_star.toFixed(3) : ''}
+          </div>
+        </div>
+      </div>`;
+    });
+    container.innerHTML = html;
+  } catch(e) {}
+}
+
+async function loadArchives() {
+  try {
+    const r = await fetch(API + '/api/archives');
+    const archives = await r.json();
+    const container = document.getElementById('archive-list');
+    if (!archives.length) { container.innerHTML = '<div class="text-dim text-sm">No archives</div>'; return; }
+    let html = '';
+    archives.forEach(a => {
+      html += `<div class="audit-entry" style="padding:6px 0;">
+        <div style="flex:1;">
+          <div class="text-sm"><strong>${a.label || a.archive_name}</strong></div>
+          <div class="text-sm text-dim">${a.timestamp || ''} · ${a.profile || ''}</div>
+        </div>
+        <button class="btn btn-sm" onclick="restoreArchive('${a.archive_name}')">Restore</button>
+      </div>`;
+    });
+    container.innerHTML = html;
+  } catch(e) {}
+}
+
+async function restoreArchive(name) {
+  if (!confirm('Restore head from archive: ' + name + '?')) return;
+  await fetch(API + '/api/restore_head', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({archive_name: name})
+  });
+  alert('Restored. Reload the profile to use the restored head.');
+}
+
+document.getElementById('audit-refresh').addEventListener('click', () => { loadAuditStats(); loadAuditHistory(); });
+document.getElementById('audit-export').addEventListener('click', () => window.open(API + '/api/audit/export'));
+document.getElementById('audit-clear').addEventListener('click', async () => {
+  if (!confirm('Clear all audit history?')) return;
+  await fetch(API + '/api/audit/clear', {method: 'POST'});
+  loadAuditStats(); loadAuditHistory();
+});
+document.getElementById('archive-save').addEventListener('click', async () => {
+  const label = prompt('Archive label:');
+  if (!label) return;
+  const notes = prompt('Notes (optional):') || '';
+  await fetch(API + '/api/archive_head', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({label, notes})
+  });
+  loadArchives();
+});
+document.getElementById('archive-refresh').addEventListener('click', loadArchives);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+(async function init() {
+  await Promise.all([pollStatus(), loadProfiles(), loadTemplates()]);
+  loadAuditStats();
+  loadArchives();
+  setInterval(pollStatus, 5000);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB: INTENT TRACE (token × layer heatmap)
+// ═══════════════════════════════════════════════════════════════════════════
+
+document.getElementById('it-mode').addEventListener('change', function() {
+  document.getElementById('it-single-inputs').style.display = this.value === 'single' ? '' : 'none';
+  document.getElementById('it-pair-inputs').style.display = this.value === 'pair' ? '' : 'none';
+});
+
+document.getElementById('it-bench-split').addEventListener('change', function() {
+  loadBenchPrompts(this, document.getElementById('it-bench-prompt'));
+});
+document.getElementById('it-bench-prompt').addEventListener('change', function() {
+  if (this.value) {
+    const mode = document.getElementById('it-mode').value;
+    if (mode === 'single') document.getElementById('it-prompt').value = this.value;
+    else document.getElementById('it-prompt-clean').value = this.value;
+  }
+});
+
+function itColorScale(v, lo, hi) {
+  // Diverging: deep blue → cyan → white → orange → deep red
+  // lo/hi define the data range (e.g. p5/p95)
+  const range = Math.max(Math.abs(lo || -4), Math.abs(hi || 4), 0.5);
+  const clamped = Math.max(-range, Math.min(range, v));
+  const t = (clamped + range) / (2 * range); // 0..1
+
+  // 5-stop gradient: navy → blue → white → orange → dark red
+  const stops = [
+    [0.0,  10,  30, 120],  // deep navy
+    [0.2,  30,  90, 210],  // blue
+    [0.4,  80, 180, 255],  // cyan
+    [0.5, 240, 240, 240],  // near-white
+    [0.6, 255, 200, 100],  // light orange
+    [0.8, 240, 100,  40],  // orange
+    [1.0, 150,  20,  20],  // dark red
+  ];
+
+  let i = 0;
+  while (i < stops.length - 1 && stops[i + 1][0] < t) i++;
+  if (i >= stops.length - 1) i = stops.length - 2;
+  const s0 = stops[i], s1 = stops[i + 1];
+  const f = (t - s0[0]) / (s1[0] - s0[0]);
+  const r = Math.round(s0[1] + f * (s1[1] - s0[1]));
+  const g = Math.round(s0[2] + f * (s1[2] - s0[2]));
+  const b = Math.round(s0[3] + f * (s1[3] - s0[3]));
+  return `rgb(${r},${g},${b})`;
+}
+
+function renderHeatmap(container, data, label) {
+  const {matrix, tokens, layers, band_layer, band_col, is_special, scale_p5, scale_p95} = data;
+  const lo = scale_p5 || -4, hi = scale_p95 || 4;
+  let html = `<table class="heatmap-table"><thead><tr><th></th>`;
+  for (let i = 0; i < layers.length; i++) {
+    const cls = i === band_col ? 'band-col' : '';
+    html += `<th class="${cls}">${layers[i]}</th>`;
+  }
+  html += `</tr></thead><tbody>`;
+  for (let t = 0; t < tokens.length; t++) {
+    const sp = is_special && is_special[t];
+    const rowStyle = sp ? 'opacity:0.35;' : '';
+    html += `<tr style="${rowStyle}"><td class="tok-label" title="${escHtml(tokens[t])}${sp?' (special)':''}">${escHtml(tokens[t])}</td>`;
+    for (let l = 0; l < layers.length; l++) {
+      const v = matrix[t][l];
+      const cls = l === band_col ? 'band-col' : '';
+      html += `<td class="${cls}" data-decode data-tok="${t}" data-layer="${layers[l]}" style="background:${itColorScale(v, lo, hi)};cursor:pointer;" title="tok=${escHtml(tokens[t])} L${layers[l]}: ${v} · click to decode"></td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+
+  // cell-click → logit-lens decode popover (only when we have the prompt_sent)
+  const promptSent = data.prompt_sent;
+  if (promptSent) {
+    container.querySelectorAll('td[data-decode]').forEach(td => {
+      td.addEventListener('click', ev => {
+        ev.stopPropagation();
+        const t = parseInt(td.dataset.tok), L = parseInt(td.dataset.layer);
+        showCellDecode(promptSent, t, L, tokens[t], ev.clientX, ev.clientY);
+      });
+    });
+  }
+}
+
+function renderTrajectory(canvas, data, pairData) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.parentElement.clientWidth - 20;
+  const H = 200;
+  canvas.width = W; canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+
+  const layers = data.layers;
+  const n = layers.length;
+  if (n < 2) return;
+
+  // Collect all values for y range
+  let allVals = [...data.trajectory_last, ...data.trajectory_max];
+  if (pairData) allVals.push(...pairData.trajectory_last, ...pairData.trajectory_max);
+  const yMin = Math.min(...allVals, -1);
+  const yMax = Math.max(...allVals, 1);
+  const pad = {l: 40, r: 10, t: 10, b: 25};
+
+  function x(i) { return pad.l + (i / (n - 1)) * (W - pad.l - pad.r); }
+  function y(v) { return pad.t + (1 - (v - yMin) / (yMax - yMin)) * (H - pad.t - pad.b); }
+
+  // Band shading
+  const bc = data.band_col;
+  ctx.fillStyle = 'rgba(80, 200, 255, 0.08)';
+  ctx.fillRect(x(bc) - 6, pad.t, 12, H - pad.t - pad.b);
+
+  // Zero line
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath(); ctx.moveTo(pad.l, y(0)); ctx.lineTo(W - pad.r, y(0)); ctx.stroke();
+
+  // Draw line helper
+  function drawLine(vals, color, dashed) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = dashed ? 1 : 2;
+    ctx.setLineDash(dashed ? [4, 3] : []);
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const px = x(i), py = y(vals[i]);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if (pairData) {
+    drawLine(pairData.trajectory_last, 'rgba(100,200,255,0.5)', true);
+    drawLine(pairData.trajectory_max, 'rgba(100,200,255,0.25)', true);
+  }
+  drawLine(data.trajectory_last, '#ff6b6b', false);
+  drawLine(data.trajectory_max, 'rgba(255,107,107,0.35)', true);
+
+  // X axis labels (every 4th layer)
+  ctx.fillStyle = 'var(--text-dim)'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+  for (let i = 0; i < n; i += 4) {
+    ctx.fillText('L' + layers[i], x(i), H - 5);
+  }
+  // Y axis
+  ctx.textAlign = 'right';
+  ctx.fillText(yMax.toFixed(1), pad.l - 4, pad.t + 10);
+  ctx.fillText(yMin.toFixed(1), pad.l - 4, H - pad.b);
+
+  // Legend
+  ctx.textAlign = 'left'; ctx.font = '10px sans-serif';
+  let lx = pad.l + 5, ly = pad.t + 14;
+  ctx.fillStyle = '#ff6b6b'; ctx.fillText('last-token', lx, ly);
+  ctx.fillStyle = 'rgba(255,107,107,0.5)'; ctx.fillText('max-token', lx + 65, ly);
+  if (pairData) {
+    ctx.fillStyle = 'rgba(100,200,255,0.7)'; ctx.fillText('(clean)', lx + 135, ly);
+  }
+}
+
+function renderBandProfile(container, data) {
+  const {band_profile, tokens, band_layer} = data;
+  const maxAbs = Math.max(...band_profile.map(Math.abs), 0.01);
+  let html = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Layer ${band_layer} projection per token</div>`;
+  html += `<div class="bar-chart" style="height:80px;padding-bottom:20px;">`;
+  for (let i = 0; i < tokens.length; i++) {
+    const v = band_profile[i];
+    const h = Math.abs(v) / maxAbs * 60;
+    const color = v >= 0 ? 'rgba(255,107,107,0.7)' : 'rgba(100,180,255,0.7)';
+    const bottom = v >= 0 ? '0' : 'auto';
+    html += `<div class="bar" style="height:${h}px;background:${color};min-width:${Math.max(14, Math.floor(600/tokens.length))}px;" title="${escHtml(tokens[i])}: ${v}">`;
+    html += `<div class="bar-label">${escHtml(tokens[i].substring(0,4))}</div></div>`;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// ── History & Compare page ───────────────────────────────────────────────
+const _histState = { limit: 25, offset: 0, total: 0, selected: new Set(), facetsLoaded: false };
+
+function refreshHistoryIfOpen() {
+  if (document.getElementById('panel-history').classList.contains('active')) loadHistory();
+}
+
+function _histFilters() {
+  const g = id => (document.getElementById(id).value || '').trim();
+  const p = new URLSearchParams();
+  p.set('limit', _histState.limit);
+  p.set('offset', _histState.offset);
+  const q = g('hist-q'); if (q) p.set('q', q);
+  for (const [id, key] of [['hist-f-axis','axis'],['hist-f-mode','mode'],['hist-f-judge','judge'],
+                            ['hist-f-template','template'],['hist-f-profile','profile'],['hist-f-tag','tag']]) {
+    const v = g(id); if (v) p.set(key, v);
+  }
+  if (document.getElementById('hist-f-starred').checked) p.set('starred', '1');
+  return p;
+}
+
+async function loadHistoryFacets() {
+  try {
+    const f = await fetch(API + '/api/intent_trace/facets').then(r => r.json());
+    const fill = (id, vals, kept) => {
+      const sel = document.getElementById(id);
+      const cur = sel.value;
+      sel.innerHTML = `<option value="">${kept}</option>` +
+        (vals || []).map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+      sel.value = cur;
+    };
+    fill('hist-f-axis', f.axis, 'All axes');
+    fill('hist-f-mode', f.mode, 'All modes');
+    fill('hist-f-judge', f.judge, 'Any verdict');
+    fill('hist-f-template', f.template, 'Any template');
+    fill('hist-f-profile', f.profile, 'Any profile');
+    fill('hist-f-tag', f.tag, 'Any tag');
+    _histState.facetsLoaded = true;
+  } catch (e) { console.error('facets:', e); }
+}
+
+async function loadHistory() {
+  if (!_histState.facetsLoaded) await loadHistoryFacets();
+  try {
+    const res = await fetch(API + '/api/intent_trace/history?' + _histFilters().toString()).then(r => r.json());
+    _histState.total = res.total || 0;
+    const items = res.items || [];
+    const tableEl = document.getElementById('hist-table');
+    const from = _histState.total ? _histState.offset + 1 : 0;
+    const to = Math.min(_histState.offset + _histState.limit, _histState.total);
+    document.getElementById('hist-stats').textContent = `${_histState.total} traces`;
+    document.getElementById('hist-page-info').textContent = `${from}–${to} of ${_histState.total}`;
+    document.getElementById('hist-prev').disabled = _histState.offset <= 0;
+    document.getElementById('hist-next').disabled = to >= _histState.total;
+
+    if (!items.length) {
+      tableEl.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center;">No traces match.</div>';
+      return;
+    }
+    let rows = '';
+    for (const r of items) {
+      const ts = r.ts ? new Date(r.ts + 'Z').toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const badge = r.judge === 'REFUSE' ? '<span class="badge badge-green">REFUSE</span>'
+        : r.judge === 'COMPLY' ? '<span class="badge badge-red">COMPLY</span>'
+        : r.judge ? `<span class="badge">${escHtml(r.judge)}</span>` : '';
+      const score = r.decision_score != null ? `<span style="color:${r.decision_score > 0 ? 'var(--red)' : 'var(--green)'};font-weight:600;">${r.decision_score.toFixed(2)}</span>` : '';
+      const axisBadge = r.axis ? `<span class="badge badge-axis">${escHtml(r.axis)}</span>` : '';
+      const modelShort = r.model_name ? r.model_name.replace(/^.*[\/\\]/, '') : '';
+      const inDock = _compareSlots.some(s => s.id === r.id);
+      const tags = (r.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+      const tagHtml = tags.map(t => `<span class="tag-chip">${escHtml(t)}</span>`).join('');
+      const checked = _histState.selected.has(r.id) ? 'checked' : '';
+      rows += `<tr data-id="${r.id}">
+        <td class="ht-check"><input type="checkbox" class="hist-row-check" data-id="${r.id}" ${checked}></td>
+        <td class="ht-star"><button class="star-btn ${r.starred ? 'on' : ''}" data-id="${r.id}" title="Star">${r.starred ? '★' : '☆'}</button></td>
+        <td class="ht-prompt" data-id="${r.id}" title="${escHtml(r.prompt || '')}">
+          <div class="ht-prompt-text">${escHtml(r.prompt || '')}</div>
+          <div class="ht-tags">${tagHtml}</div>
+        </td>
+        <td class="ht-meta">${badge} ${score} ${axisBadge}</td>
+        <td class="ht-meta2"><span class="text-dim">${escHtml([modelShort, r.mode].filter(Boolean).join(' · '))}</span><br><span class="text-dim" style="opacity:.6;">${ts}</span></td>
+        <td class="ht-actions">
+          <button class="btn btn-sm" data-act="replay" data-id="${r.id}">View</button>
+          <button class="btn btn-sm ${inDock ? 'added' : ''}" data-act="compare" data-id="${r.id}">${inDock ? '✓' : '+ Cmp'}</button>
+          <button class="btn btn-sm" data-act="note" data-id="${r.id}" title="Tags & notes">✎</button>
+        </td>
+      </tr>`;
+    }
+    tableEl.innerHTML =
+      `<table class="hist-table"><thead><tr>
+        <th class="ht-check"><input type="checkbox" id="hist-check-all"></th>
+        <th class="ht-star"></th><th>Prompt</th><th>Verdict</th><th>Meta</th><th></th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+
+    tableEl.querySelectorAll('.ht-prompt').forEach(el =>
+      el.addEventListener('click', () => replayTrace(parseInt(el.dataset.id))));
+    tableEl.querySelectorAll('button[data-act]').forEach(b =>
+      b.addEventListener('click', e => { e.stopPropagation(); histAction(b.dataset.act, parseInt(b.dataset.id)); }));
+    tableEl.querySelectorAll('.star-btn').forEach(b =>
+      b.addEventListener('click', e => { e.stopPropagation(); toggleStar(parseInt(b.dataset.id), b); }));
+    tableEl.querySelectorAll('.hist-row-check').forEach(c =>
+      c.addEventListener('change', () => { toggleSelect(parseInt(c.dataset.id), c.checked); }));
+    const checkAll = document.getElementById('hist-check-all');
+    if (checkAll) checkAll.addEventListener('change', () => {
+      tableEl.querySelectorAll('.hist-row-check').forEach(c => {
+        c.checked = checkAll.checked; toggleSelect(parseInt(c.dataset.id), c.checked);
+      });
+    });
+    updateBulkBar();
+  } catch (e) { console.error('loadHistory:', e); }
+}
+
+function histAction(act, id) {
+  if (act === 'replay') replayTrace(id);
+  else if (act === 'compare') addToCompare(id).then(() => loadHistory());
+  else if (act === 'note') openNoteEditor(id);
+}
+
+function toggleSelect(id, on) {
+  if (on) _histState.selected.add(id); else _histState.selected.delete(id);
+  updateBulkBar();
+}
+function updateBulkBar() {
+  const n = _histState.selected.size;
+  document.getElementById('hist-bulk-bar').style.display = n ? '' : 'none';
+  document.getElementById('hist-sel-count').textContent = `${n} selected`;
+}
+
+async function toggleStar(id, btn) {
+  const on = !btn.classList.contains('on');
+  await fetch(API + `/api/intent_trace/history/${id}/meta`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({starred: on})
+  });
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? '★' : '☆';
+}
+
+async function openNoteEditor(id) {
+  const d = await fetch(API + '/api/intent_trace/history/' + id).then(r => r.json());
+  const curTags = (d.tags || '').split(',').map(t => t.trim()).filter(Boolean).join(', ');
+  const tags = prompt('Tags (comma-separated):', curTags);
+  if (tags === null) return;
+  const notes = prompt('Notes:', d.notes || '');
+  if (notes === null) return;
+  await fetch(API + `/api/intent_trace/history/${id}/meta`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({tags: tags.split(',').map(t => t.trim()).filter(Boolean), notes})
+  });
+  _histState.facetsLoaded = false;
+  loadHistory();
+}
+
+async function replayTrace(id) {
+  try {
+    const d = await fetch(API + '/api/intent_trace/history/' + id).then(r => r.json());
+    if (d.error) { alert(d.error); return; }
+    // jump to the trace tab and render there
+    document.querySelector('.tab-bar button[data-tab="intent-trace"]').click();
+    if (d.axis) document.getElementById('it-axis').value = d.axis;
+    document.getElementById('it-prompt').value = d.prompt || '';
+    renderIntentTraceResult(d);
+  } catch (e) { alert('Failed to load trace: ' + e); }
+}
+
+function renderIntentTraceResult(d) {
+  if (d.matrix) _lastItData = d;
+  ['it-heatmap-card','it-trajectory-card','it-band-card','it-diff-card','it-decision-card','it-response-card'].forEach(id =>
+    document.getElementById(id).style.display = 'none');
+
+  if (d.matrix) {
+    document.getElementById('it-heatmap-card').style.display = '';
+    document.getElementById('it-heatmap-label').textContent = `${d.tokens.length} tokens × ${d.layers.length} layers`;
+    if (document.getElementById('it-view-3d').classList.contains('active')) {
+      document.getElementById('it-heatmap').style.display = 'none';
+      document.getElementById('it-heatmap-3d').style.display = '';
+      render3DHeatmap(d);
+    } else {
+      document.getElementById('it-heatmap').style.display = '';
+      document.getElementById('it-heatmap-3d').style.display = 'none';
+      renderHeatmap(document.getElementById('it-heatmap'), d);
+    }
+  }
+  if (d.trajectory_last) {
+    document.getElementById('it-trajectory-card').style.display = '';
+    renderTrajectory(document.getElementById('it-trajectory-canvas'), d);
+  }
+  if (d.band_profile) {
+    document.getElementById('it-band-card').style.display = '';
+    renderBandProfile(document.getElementById('it-band-profile'), d);
+  }
+  if (d.decision_score != null) {
+    const axisName = (d.axis === 'actionability') ? 'request actionability' : 'intent';
+    document.getElementById('it-decision-card').style.display = '';
+    document.getElementById('it-decision-info').innerHTML =
+      `<div class="text-sm">Axis: <strong>${axisName}</strong> · Band layer: <strong>L${d.band_layer}</strong></div>` +
+      `<div class="text-sm">Decision score (last token @ band): <strong style="color:${d.decision_score > 0 ? 'var(--red)' : 'var(--green)'}">${d.decision_score.toFixed(4)}</strong></div>` +
+      `<div class="text-sm text-dim mt-8">Score = projection of last token onto the ${axisName} direction at the tapped layer. Positive = ${axisName} signal present.</div>`;
+  }
+  if (d.response) {
+    document.getElementById('it-response-card').style.display = '';
+    document.getElementById('it-response-text').textContent = d.response;
+    document.getElementById('it-response-judge').innerHTML = judgeBadge(d.judge);
+    document.getElementById('it-response-time').textContent = d.gen_time_s ? d.gen_time_s + 's' : '';
+  }
+}
+
+function exportTraces(fmt, ids) {
+  let url = API + '/api/intent_trace/export?format=' + fmt;
+  if (ids && ids.length) url += '&ids=' + ids.join(',');
+  window.open(url, '_blank');
+}
+
+// ── History page controls ────────────────────────────────────────────────
+(function wireHistoryControls() {
+  const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+  const reload = () => { _histState.offset = 0; loadHistory(); };
+  document.getElementById('hist-q').addEventListener('input', debounce(reload, 300));
+  ['hist-f-axis','hist-f-mode','hist-f-judge','hist-f-template','hist-f-profile','hist-f-tag']
+    .forEach(id => document.getElementById(id).addEventListener('change', reload));
+  document.getElementById('hist-f-starred').addEventListener('change', reload);
+  document.getElementById('hist-clear-filters').addEventListener('click', () => {
+    ['hist-q','hist-f-axis','hist-f-mode','hist-f-judge','hist-f-template','hist-f-profile','hist-f-tag']
+      .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('hist-f-starred').checked = false;
+    reload();
+  });
+  document.getElementById('hist-prev').addEventListener('click', () => {
+    _histState.offset = Math.max(0, _histState.offset - _histState.limit); loadHistory();
+  });
+  document.getElementById('hist-next').addEventListener('click', () => {
+    _histState.offset += _histState.limit; loadHistory();
+  });
+  document.getElementById('hist-sel-clear').addEventListener('click', () => {
+    _histState.selected.clear(); loadHistory();
+  });
+  document.getElementById('hist-bulk-export').addEventListener('click', () =>
+    exportTraces('json', [..._histState.selected]));
+  document.getElementById('hist-bulk-compare').addEventListener('click', async () => {
+    for (const id of _histState.selected) await addToCompare(id);
+    loadHistory();
+  });
+  document.getElementById('hist-bulk-delete').addEventListener('click', async () => {
+    const ids = [..._histState.selected];
+    if (!ids.length || !confirm(`Delete ${ids.length} trace(s)? This cannot be undone.`)) return;
+    await fetch(API + '/api/intent_trace/history/bulk_delete', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ids})
+    });
+    _histState.selected.clear();
+    _histState.facetsLoaded = false;
+    loadHistory();
+  });
+})();
+
+async function runIntentTrace() {
+  const mode = document.getElementById('it-mode').value;
+  const template = document.getElementById('it-template').value;
+  const axis = document.getElementById('it-axis').value;
+  const btn = document.getElementById('it-run');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Computing...';
+
+  // Hide all result cards
+  ['it-heatmap-card','it-trajectory-card','it-band-card','it-diff-card','it-decision-card','it-response-card'].forEach(id =>
+    document.getElementById(id).style.display = 'none');
+
+  try {
+    if (mode === 'single') {
+      const prompt = document.getElementById('it-prompt').value.trim();
+      if (!prompt) { alert('Enter a prompt'); return; }
+
+      const r = await fetch(API + '/api/intent_trace', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({prompt, template, axis})
+      });
+      const d = await r.json();
+      if (d.error) { alert(d.error); return; }
+      _lastItData = d;
+      renderIntentTraceResult(d);
+      refreshHistoryIfOpen();
+
+    } else {
+      const promptClean = document.getElementById('it-prompt-clean').value.trim();
+      const promptWrapped = document.getElementById('it-prompt-wrapped').value.trim();
+      if (!promptClean || !promptWrapped) { alert('Both prompts required'); return; }
+
+      const r = await fetch(API + '/api/intent_trace_pair', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({prompt_clean: promptClean, prompt_wrapped: promptWrapped, template, axis})
+      });
+      const d = await r.json();
+      if (d.error) { alert(d.error); return; }
+      _lastItData = d.clean;
+
+      // Clean heatmap
+      document.getElementById('it-heatmap-card').style.display = '';
+      document.getElementById('it-heatmap-label').textContent = 'Clean';
+      renderHeatmap(document.getElementById('it-heatmap'), d.clean);
+
+      // Trajectory overlay
+      document.getElementById('it-trajectory-card').style.display = '';
+      renderTrajectory(document.getElementById('it-trajectory-canvas'), d.wrapped, d.clean);
+
+      // Band profile (wrapped)
+      document.getElementById('it-band-card').style.display = '';
+      renderBandProfile(document.getElementById('it-band-profile'), d.wrapped);
+
+      // Diff map
+      if (d.diff_matrix) {
+        document.getElementById('it-diff-card').style.display = '';
+        const diffData = {
+          matrix: d.diff_matrix,
+          tokens: d.shared_tokens,
+          layers: d.clean.layers,
+          band_layer: d.clean.band_layer,
+          band_col: d.clean.band_col,
+        };
+        renderHeatmap(document.getElementById('it-diff-heatmap'), diffData);
+      }
+
+      // Decision comparison
+      document.getElementById('it-decision-card').style.display = '';
+      document.getElementById('it-decision-info').innerHTML =
+        `<div class="text-sm">Clean decision score: <strong style="color:${d.clean.decision_score > 0 ? 'var(--red)' : 'var(--green)'}">${d.clean.decision_score.toFixed(4)}</strong></div>` +
+        `<div class="text-sm">Wrapped decision score: <strong style="color:${d.wrapped.decision_score > 0 ? 'var(--red)' : 'var(--green)'}">${d.wrapped.decision_score.toFixed(4)}</strong></div>` +
+        `<div class="text-sm mt-8">Delta: <strong>${(d.clean.decision_score - d.wrapped.decision_score).toFixed(4)}</strong></div>` +
+        `<div class="text-sm text-dim mt-8">Positive delta = wrapper suppressed the signal. Shared span: ${d.shared_tokens.length} tokens.</div>`;
+      refreshHistoryIfOpen();
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Compute Trace'; }
+}
+
+document.getElementById('it-run').addEventListener('click', runIntentTrace);
+
+// ── Axis selector (Intent ⇄ Request Actionability) ───────────────────────
+const AXIS_META = {
+  intent: { title: 'Intent Trace',
+    desc: 'Projects each token onto the intent direction (context-aware genuine-harm; label==intent) at every layer.' },
+  actionability: { title: 'Request Actionability Trace',
+    desc: 'Projects each token onto the Request-Actionability direction — request-side (prompt-position): does the prompt solicit operational steps? NOT content-side uplift. Audited layers only.' },
+};
+let _axisCoverage = null;
+function updateAxisCoverage() {
+  const axis = document.getElementById('it-axis').value;
+  const el = document.getElementById('it-coverage');
+  if (!el) return;
+  if (!_axisCoverage) { el.textContent = ''; return; }
+  const layers = _axisCoverage[axis] || [];
+  const n = _axisCoverage.n_layers;
+  if (axis === 'actionability') {
+    el.innerHTML = layers.length
+      ? `<span class="coverage-pill">directions on disk: ${layers.map(l => 'L'+l).join(', ')} of ${n}</span> `
+        + `<span class="text-dim">— sparse coverage is expected; only audited layers have a Request-Actionability probe. Full-depth sweep pending a committed, independence-checked labeler.</span>`
+      : `<span class="coverage-pill warn">no request-actionability directions on disk for this profile</span>`;
+  } else {
+    el.innerHTML = `<span class="coverage-pill">directions: ${layers.length} of ${n} layers (full-depth diff-of-means)</span>`;
+  }
+}
+document.getElementById('it-axis').addEventListener('change', e => {
+  const m = AXIS_META[e.target.value] || AXIS_META.intent;
+  document.getElementById('it-title').textContent = m.title;
+  document.getElementById('it-axis-desc').textContent = m.desc;
+  updateAxisCoverage();
+});
+
+// ── Cell-click logit-lens decode (shared across trace heatmaps) ───────────
+let _cellDecodeCache = {};
+async function showCellDecode(promptSent, tokenIdx, layer, tokenStr, x, y) {
+  const pop = document.getElementById('it-cell-decode');
+  pop.style.display = '';
+  pop.style.left = Math.min(x + 12, window.innerWidth - 240) + 'px';
+  pop.style.top = (y + 12) + 'px';
+  pop.innerHTML = `<div class="cd-head">“${escHtml(tokenStr)}” @ L${layer}</div><div class="text-dim">decoding…</div>`;
+  try {
+    const key = promptSent;
+    if (!_cellDecodeCache[key]) {
+      _cellDecodeCache[key] = await fetch(API + '/api/logit_lens', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({prompt: promptSent, template: 'none', top_k: 5})
+      }).then(r => r.json());
+    }
+    const d = _cellDecodeCache[key];
+    if (d.error) { pop.innerHTML = `<div class="cd-head">error</div><div class="text-dim">${escHtml(d.error)}</div>`; return; }
+    const li = d.layers.indexOf(layer);
+    const cell = (li >= 0 && d.grid[li]) ? d.grid[li][tokenIdx] : null;
+    const foot = `<div class="cd-foot">Logit lens decode — independent of this axis</div>`;
+    if (!cell) { pop.innerHTML = `<div class="cd-head">“${escHtml(tokenStr)}” @ L${layer}</div><div class="text-dim">no decode</div>${foot}`; return; }
+    pop.innerHTML = `<div class="cd-head">“${escHtml(tokenStr)}” @ L${layer}</div>` +
+      cell.map(([tok, p]) => `<div class="cd-row"><span>${escHtml(tok)}</span><span class="text-dim">${(p*100).toFixed(1)}%</span></div>`).join('') +
+      foot;
+  } catch (e) {
+    pop.innerHTML = `<div class="cd-head">error</div><div class="text-dim">${escHtml(String(e))}</div>`;
+  }
+}
+document.addEventListener('click', e => {
+  const pop = document.getElementById('it-cell-decode');
+  if (pop && !pop.contains(e.target) && !e.target.closest('.heatmap-table td[data-decode]')) pop.style.display = 'none';
+});
+
+// ── Logit Lens tab ────────────────────────────────────────────────────────
+document.getElementById('ll-run').addEventListener('click', async () => {
+  const prompt = document.getElementById('ll-prompt').value.trim();
+  if (!prompt) { alert('Enter a prompt'); return; }
+  const template = document.getElementById('ll-template').value;
+  const top_k = parseInt(document.getElementById('ll-topk').value);
+  const btn = document.getElementById('ll-run');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Running...';
+  try {
+    const d = await fetch(API + '/api/logit_lens', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({prompt, template, top_k})
+    }).then(r => r.json());
+    if (d.error) { alert(d.error); return; }
+    renderLogitLens(d);
+  } catch (e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Run Lens'; }
+});
+
+function renderLogitLens(d) {
+  document.getElementById('ll-result-card').style.display = '';
+  document.getElementById('ll-label').textContent =
+    `${d.tokens.length} positions × ${d.layers.length} layers · top-${d.top_k} · last layer = real output`;
+  // rows = layers (deep→shallow so the real output sits on top), cols = positions
+  const layerOrder = [...d.layers].reverse();
+  let html = '<table class="ll-table"><thead><tr><th class="ll-corner">layer \\ pos</th>';
+  for (let t = 0; t < d.tokens.length; t++) {
+    const sp = d.is_special[t];
+    html += `<th class="${sp ? 'll-special' : ''}" title="${escHtml(d.tokens[t])}">${escHtml(d.tokens[t]).slice(0,6)}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+  for (const L of layerOrder) {
+    const li = d.layers.indexOf(L);
+    const isLast = (L === d.layers[d.layers.length - 1]);
+    html += `<tr class="${isLast ? 'll-final' : ''}"><td class="ll-layer">L${L}${isLast ? ' ★' : ''}</td>`;
+    for (let t = 0; t < d.tokens.length; t++) {
+      const cell = d.grid[li][t];
+      const top = cell[0];
+      const conf = top[1];
+      const bg = `rgba(80,180,255,${Math.min(conf, 0.9).toFixed(2)})`;
+      const tip = cell.map(([tk, p]) => `${tk} ${(p*100).toFixed(1)}%`).join('\n');
+      html += `<td class="ll-cell" style="background:${bg};" title="${escHtml(tip)}">${escHtml(top[0]).slice(0,6)}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('ll-grid').innerHTML = html;
+}
+
+// ── Gate 2×2 tab ──────────────────────────────────────────────────────────
+let _lastG2 = null;
+const GATE_CELL_LABEL = {
+  refuse_or_route: {t:'Refuse / route', d:'high intent + high request-actionability', c:'var(--red)'},
+  redirect:        {t:'Redirect', d:'high intent + low request-actionability', c:'#e0a030'},
+  answer_dual_use: {t:'Answer (dual-use)', d:'low intent + high request-actionability', c:'#4a90d0'},
+  answer:          {t:'Answer', d:'low intent + low request-actionability', c:'var(--green)'},
+};
+document.getElementById('g2-thr-harm').addEventListener('input', e => {
+  document.getElementById('g2-thr-harm-val').textContent = parseFloat(e.target.value).toFixed(2);
+  if (_lastG2) recomputeG2Cell();
+});
+document.getElementById('g2-thr-action').addEventListener('input', e => {
+  document.getElementById('g2-thr-action-val').textContent = parseFloat(e.target.value).toFixed(2);
+  if (_lastG2) recomputeG2Cell();
+});
+document.getElementById('g2-run').addEventListener('click', async () => {
+  const prompt = document.getElementById('g2-prompt').value.trim();
+  if (!prompt) { alert('Enter a prompt'); return; }
+  const template = document.getElementById('g2-template').value;
+  const thr_harm = parseFloat(document.getElementById('g2-thr-harm').value);
+  const thr_action = parseFloat(document.getElementById('g2-thr-action').value);
+  const btn = document.getElementById('g2-run');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Scoring...';
+  try {
+    const d = await fetch(API + '/api/gate2x2', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({prompt, template, thr_harm, thr_action})
+    }).then(r => r.json());
+    if (d.error) { alert(d.error); return; }
+    _lastG2 = d;
+    document.getElementById('g2-result').style.display = '';
+    recomputeG2Cell();
+  } catch (e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Score'; }
+});
+
+function recomputeG2Cell() {
+  const d = _lastG2;
+  const thr_harm = parseFloat(document.getElementById('g2-thr-harm').value);
+  const thr_action = parseFloat(document.getElementById('g2-thr-action').value);
+  const highH = d.harm.z >= thr_harm, highA = d.actionability.z >= thr_action;
+  const cellKey = highH ? (highA ? 'refuse_or_route' : 'redirect') : (highA ? 'answer_dual_use' : 'answer');
+  const lbl = GATE_CELL_LABEL[cellKey];
+  document.getElementById('g2-verdict').innerHTML =
+    `<div class="g2-cell-badge" style="background:${lbl.c};">${lbl.t}</div>` +
+    `<div class="text-sm text-dim" style="margin:6px 0 12px;">${lbl.d}</div>` +
+    `<table class="g2-scores">
+      <tr><td>Intent</td><td>z = <strong>${d.harm.z.toFixed(3)}</strong></td><td class="text-dim">L${d.harm.layer} @ ${d.harm.position}</td><td>${highH?'▲ high':'▽ low'}</td></tr>
+      <tr><td>Req. Action</td><td>z = <strong>${d.actionability.z.toFixed(3)}</strong></td><td class="text-dim">L${d.actionability.layer} @ ${d.actionability.position}</td><td>${highA?'▲ high':'▽ low'}</td></tr>
+    </table>` +
+    `<div class="text-sm text-dim" style="margin-top:10px;">t_inst = token ${d.t_inst} · t_post = token ${d.t_post_inst} of ${d.tokens.length}</div>` +
+    `<div class="text-sm text-dim" style="margin-top:4px;opacity:.7;">${escHtml(d.note)}</div>`;
+  drawG2Plot(d.harm.z, d.actionability.z, thr_harm, thr_action, lbl.c);
+}
+
+function drawG2Plot(harmZ, actZ, thrH, thrA, color) {
+  const cv = document.getElementById('g2-plot'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height, pad = 34;
+  ctx.clearRect(0, 0, W, H);
+  const lim = 3.2;
+  const X = z => pad + (z + lim) / (2*lim) * (W - 2*pad);
+  const Y = z => H - pad - (z + lim) / (2*lim) * (H - 2*pad);
+  // quadrant shading around thresholds
+  const tx = X(thrA), ty = Y(thrH);
+  const quads = [
+    [tx, 0, W-tx, ty, 'rgba(224,80,80,0.10)'],       // top-right: refuse
+    [0, 0, tx, ty, 'rgba(224,160,48,0.10)'],          // top-left: redirect
+    [tx, ty, W-tx, H-ty, 'rgba(74,144,208,0.10)'],    // bot-right: dual-use
+    [0, ty, tx, H-ty, 'rgba(80,200,120,0.10)'],       // bot-left: answer
+  ];
+  quads.forEach(([x,y,w,h,c]) => { ctx.fillStyle = c; ctx.fillRect(x,y,w,h); });
+  // threshold lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(tx, pad); ctx.lineTo(tx, H-pad); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad, ty); ctx.lineTo(W-pad, ty); ctx.stroke();
+  ctx.setLineDash([]);
+  // axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.moveTo(pad, H-pad); ctx.lineTo(W-pad, H-pad); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, H-pad); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('request-actionability z →', W/2, H-8);
+  ctx.save(); ctx.translate(12, H/2); ctx.rotate(-Math.PI/2); ctx.fillText('intent z →', 0, 0); ctx.restore();
+  // the point
+  ctx.fillStyle = color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(X(actZ), Y(harmZ), 7, 0, 2*Math.PI); ctx.fill(); ctx.stroke();
+}
+
+// ── 3D Heatmap View ──────────────────────────────────────────────────────
+
+let _3dState = null; // {scene, camera, renderer, controls, raycaster, mouse, dots, data, animId, ro}
+const _3dSettings = { labelSize: 24, dotScale: 10, labelColor: '#aaaaaa' };
+
+document.getElementById('it-view-2d').addEventListener('click', () => {
+  document.getElementById('it-view-2d').classList.add('active');
+  document.getElementById('it-view-3d').classList.remove('active');
+  document.getElementById('it-heatmap').style.display = '';
+  document.getElementById('it-heatmap-3d').style.display = 'none';
+  if (_3dState) { _destroy3D(_3dState); _3dState = null; }
+});
+
+document.getElementById('it-view-3d').addEventListener('click', () => {
+  document.getElementById('it-view-2d').classList.remove('active');
+  document.getElementById('it-view-3d').classList.add('active');
+  document.getElementById('it-heatmap').style.display = 'none';
+  document.getElementById('it-heatmap-3d').style.display = '';
+  if (_lastItData) render3DHeatmap(_lastItData);
+});
+
+// Settings controls for main 3D view
+document.getElementById('it-3d-label-size').addEventListener('input', (e) => {
+  _3dSettings.labelSize = parseInt(e.target.value);
+  if (_3dState && _lastItData) render3DHeatmap(_lastItData);
+});
+document.getElementById('it-3d-dot-size').addEventListener('input', (e) => {
+  _3dSettings.dotScale = parseInt(e.target.value);
+  if (_3dState && _lastItData) render3DHeatmap(_lastItData);
+});
+document.getElementById('it-3d-label-color').addEventListener('input', (e) => {
+  _3dSettings.labelColor = e.target.value;
+  if (_3dState && _lastItData) render3DHeatmap(_lastItData);
+});
+
+function _destroy3D(st) {
+  if (!st) return;
+  cancelAnimationFrame(st.animId);
+  if (st.ro) st.ro.disconnect();
+  st.renderer.dispose();
+}
+
+function itColor3D(v, range) {
+  const clamped = Math.max(-range, Math.min(range, v));
+  const t = (clamped + range) / (2 * range);
+  const stops = [
+    [0.0, 0.04, 0.12, 0.47],
+    [0.2, 0.12, 0.35, 0.82],
+    [0.4, 0.31, 0.71, 1.00],
+    [0.5, 0.94, 0.94, 0.94],
+    [0.6, 1.00, 0.78, 0.39],
+    [0.8, 0.94, 0.39, 0.16],
+    [1.0, 0.59, 0.08, 0.08],
+  ];
+  let i = 0;
+  while (i < stops.length - 1 && stops[i + 1][0] < t) i++;
+  if (i >= stops.length - 1) i = stops.length - 2;
+  const s0 = stops[i], s1 = stops[i + 1];
+  const f = (t - s0[0]) / (s1[0] - s0[0]);
+  return new THREE.Color(s0[1]+f*(s1[1]-s0[1]), s0[2]+f*(s1[2]-s0[2]), s0[3]+f*(s1[3]-s0[3]));
+}
+
+function _build3D(container, canvas, tooltip, data, opts) {
+  const labelSize = (opts && opts.labelSize) || _3dSettings.labelSize;
+  const dotScale = (opts && opts.dotScale != null ? opts.dotScale : _3dSettings.dotScale) / 10;
+  const labelColor = (opts && opts.labelColor) || _3dSettings.labelColor;
+
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+  if (W < 10 || H < 10) return null;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x080a0f);
+
+  const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.rotateSpeed = 0.6;
+
+  const {matrix, tokens, layers, band_col, is_special, scale_p5, scale_p95} = data;
+
+  const contentIdx = [];
+  const contentTokens = [];
+  for (let t = 0; t < tokens.length; t++) {
+    if (is_special && is_special[t]) continue;
+    contentIdx.push(t);
+    contentTokens.push(tokens[t]);
+  }
+  const nT = contentIdx.length;
+  const nL = layers.length;
+
+  const range = Math.max(Math.abs(scale_p5 || -4), Math.abs(scale_p95 || 4), 0.5);
+  const scaleX = 20 / Math.max(nL, 1);
+  const scaleZ = 12 / Math.max(nT, 1);
+  const scaleY = 6 / range;
+
+  const cx = (nL - 1) * scaleX / 2;
+  const cz = (nT - 1) * scaleZ / 2;
+
+  const dotGeo = new THREE.SphereGeometry(0.12, 8, 6);
+  const dots = [];
+
+  for (let ci = 0; ci < nT; ci++) {
+    const t = contentIdx[ci];
+    for (let l = 0; l < nL; l++) {
+      const v = matrix[t][l];
+      const vClamped = Math.max(-range * 1.5, Math.min(range * 1.5, v));
+      const color = itColor3D(v, range);
+      const opacity = Math.min(0.3 + Math.abs(v) / range * 0.7, 1.0);
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity });
+      const mesh = new THREE.Mesh(dotGeo, mat);
+      mesh.position.set(l * scaleX - cx, vClamped * scaleY, ci * scaleZ - cz);
+      const s = (0.5 + Math.min(Math.abs(v) / range, 2.0) * 1.2) * dotScale;
+      mesh.scale.set(s, s, s);
+      mesh.userData = { token: contentTokens[ci], layer: layers[l], value: v, tokenIdx: t, layerIdx: l };
+      scene.add(mesh);
+      dots.push(mesh);
+    }
+  }
+
+  const bandX = band_col * scaleX - cx;
+  const tallPlane = new THREE.PlaneGeometry(0.3, (nT - 1) * scaleZ + 4);
+  const bandPlane2 = new THREE.Mesh(tallPlane, new THREE.MeshBasicMaterial({ color: 0x50c8ff, transparent: true, opacity: 0.04, side: THREE.DoubleSide }));
+  bandPlane2.position.set(bandX, 0, 0);
+  bandPlane2.rotation.y = Math.PI / 2;
+  bandPlane2.scale.set(range * scaleY * 2, 1, 1);
+  scene.add(bandPlane2);
+
+  const axisMat = new THREE.LineBasicMaterial({ color: 0x333333 });
+  const xGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-cx - 1, 0, cz + 1), new THREE.Vector3((nL - 1) * scaleX - cx + 1, 0, cz + 1)
+  ]);
+  scene.add(new THREE.Line(xGeo, axisMat));
+  const zGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-cx - 1, 0, -cz - 1), new THREE.Vector3(-cx - 1, 0, cz + 1)
+  ]);
+  scene.add(new THREE.Line(zGeo, axisMat));
+  const zeroGeo = new THREE.PlaneGeometry((nL - 1) * scaleX + 2, (nT - 1) * scaleZ + 2);
+  const zeroMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.02, side: THREE.DoubleSide });
+  const zeroPlane = new THREE.Mesh(zeroGeo, zeroMat);
+  zeroPlane.rotation.x = -Math.PI / 2;
+  scene.add(zeroPlane);
+
+  const spriteScaleW = Math.max(2.5, labelSize / 10);
+  const spriteScaleH = Math.max(0.6, labelSize / 40);
+
+  function makeLabel(text, pos, size, color) {
+    const cvs = document.createElement('canvas');
+    const res = Math.max(256, size * 8);
+    cvs.width = res; cvs.height = Math.ceil(res / 4);
+    const c = cvs.getContext('2d');
+    c.font = `bold ${size}px monospace`;
+    c.fillStyle = color || labelColor;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(text, cvs.width / 2, cvs.height / 2);
+    const tex = new THREE.CanvasTexture(cvs);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.copy(pos);
+    sprite.scale.set(spriteScaleW, spriteScaleH, 1);
+    scene.add(sprite);
+    return sprite;
+  }
+
+  for (let l = 0; l < nL; l += Math.max(1, Math.floor(nL / 14))) {
+    makeLabel('L' + layers[l], new THREE.Vector3(l * scaleX - cx, 0, cz + 2), labelSize, l === band_col ? '#50c8ff' : labelColor);
+  }
+  const tokStep = Math.max(1, Math.floor(nT / 12));
+  for (let t = 0; t < nT; t += tokStep) {
+    const label = contentTokens[t].length > 8 ? contentTokens[t].substring(0, 7) + '…' : contentTokens[t];
+    makeLabel(label, new THREE.Vector3(-cx - 2, 0, t * scaleZ - cz), Math.round(labelSize * 0.85), labelColor);
+  }
+  makeLabel('Layers →', new THREE.Vector3(0, 0, cz + 3.5), Math.round(labelSize * 1.1), labelColor);
+  makeLabel('Tokens →', new THREE.Vector3(-cx - 3.5, 0, 0), Math.round(labelSize * 1.1), labelColor);
+  makeLabel('↑ Projection', new THREE.Vector3(-cx - 2, range * scaleY * 0.6, cz + 2), labelSize, labelColor);
+
+  camera.position.set(cx + 8, range * scaleY + 5, cz + 10);
+  controls.target.set(0, 0, 0);
+  controls.update();
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.params.Points = { threshold: 0.3 };
+  const mouse = new THREE.Vector2();
+  let hoveredDot = null;
+
+  const onMove = (e) => {
+    const rect = container.getBoundingClientRect();
+    const cw = rect.width, ch = rect.height;
+    mouse.x = ((e.clientX - rect.left) / cw) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / ch) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(dots);
+    if (hoveredDot) { hoveredDot.scale.divideScalar(1.3); hoveredDot = null; }
+    if (intersects.length > 0) {
+      const obj = intersects[0].object;
+      const d = obj.userData;
+      hoveredDot = obj;
+      obj.scale.multiplyScalar(1.3);
+      tooltip.style.display = '';
+      tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+      tooltip.style.top = (e.clientY - rect.top - 20) + 'px';
+      const vColor = d.value >= 0 ? '#ff6b6b' : '#64b5f6';
+      tooltip.innerHTML = `<strong>${escHtml(d.token)}</strong> @ L${d.layer}<br>projection: <span style="color:${vColor}">${d.value.toFixed(4)}</span>`;
+    } else {
+      tooltip.style.display = 'none';
+    }
+  };
+  container.addEventListener('mousemove', onMove);
+
+  const state = { scene, camera, renderer, controls, raycaster, mouse, dots, data, animId: null, ro: null, onMove, container };
+
+  function animate() {
+    state.animId = requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  const ro = new ResizeObserver(() => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (w < 10 || h < 10) return;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  });
+  ro.observe(container);
+  state.ro = ro;
+
+  return state;
+}
+
+function render3DHeatmap(data) {
+  if (_3dState) { _destroy3D(_3dState); _3dState = null; }
+  const container = document.getElementById('it-heatmap-3d');
+  const canvas = document.getElementById('it-3d-canvas');
+  const tooltip = document.getElementById('it-3d-tooltip');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    _3dState = _build3D(container, canvas, tooltip, data, _3dSettings);
+  }));
+}
+
+let _lastItData = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INTENT TRACE — COMPARE DOCK
+// ═══════════════════════════════════════════════════════════════════════════
+
+const _compareSlots = []; // [{id, prompt, data}, ...] max 4
+const _compare3DStates = {}; // slot index -> 3D state
+
+function _cleanupCompare3D() {
+  for (const k in _compare3DStates) {
+    _destroy3D(_compare3DStates[k]);
+    delete _compare3DStates[k];
+  }
+}
+
+function toggleCompareView(idx, mode) {
+  const body2d = document.getElementById('compare-heatmap-' + idx);
+  const body3d = document.getElementById('compare-3d-' + idx);
+  const btn2d = document.getElementById('cmp-view-2d-' + idx);
+  const btn3d = document.getElementById('cmp-view-3d-' + idx);
+  if (!body2d || !body3d) return;
+
+  if (mode === '3d') {
+    body2d.style.display = 'none';
+    body3d.style.display = 'block';
+    btn2d.classList.remove('active');
+    btn3d.classList.add('active');
+    if (_compare3DStates[idx]) { _destroy3D(_compare3DStates[idx]); delete _compare3DStates[idx]; }
+    const canvas = body3d.querySelector('canvas');
+    const tooltip = body3d.querySelector('.cmp-3d-tooltip');
+    const slotData = _compareSlots[idx];
+    if (slotData && slotData.data.matrix) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        _compare3DStates[idx] = _build3D(body3d, canvas, tooltip, slotData.data, _3dSettings);
+      }));
+    }
+  } else {
+    body2d.style.display = '';
+    body3d.style.display = 'none';
+    btn2d.classList.add('active');
+    btn3d.classList.remove('active');
+    if (_compare3DStates[idx]) { _destroy3D(_compare3DStates[idx]); delete _compare3DStates[idx]; }
+  }
+}
+
+function updateCompareDock() {
+  _cleanupCompare3D();
+  const dock = document.getElementById('it-compare-dock');
+  const body = document.getElementById('it-compare-body');
+  const countBadge = document.getElementById('it-compare-count');
+
+  countBadge.textContent = _compareSlots.length;
+
+  if (_compareSlots.length === 0) {
+    dock.style.display = 'none';
+    return;
+  }
+  dock.style.display = '';
+
+  body.className = 'compare-dock-body cols-' + Math.min(_compareSlots.length, 4);
+
+  let html = '';
+  for (let i = 0; i < _compareSlots.length; i++) {
+    const slot = _compareSlots[i];
+    const promptShort = (slot.prompt || '').length > 80
+      ? slot.prompt.substring(0, 77) + '...' : slot.prompt;
+    const judge = slot.data.judge;
+    const badge = judge === 'REFUSE' ? '<span class="badge badge-green" style="font-size:10px;">REFUSE</span>'
+      : judge === 'COMPLY' ? '<span class="badge badge-red" style="font-size:10px;">COMPLY</span>'
+      : judge ? '<span class="badge" style="font-size:10px;">' + escHtml(judge) + '</span>' : '';
+    const score = slot.data.decision_score != null
+      ? slot.data.decision_score.toFixed(3) : '—';
+    const scoreColor = slot.data.decision_score > 0 ? 'var(--red)' : 'var(--green)';
+
+    html += '<div class="compare-slot" data-slot-idx="' + i + '">'
+      + '<div class="compare-slot-header">'
+      + '<span class="slot-prompt" title="' + escHtml(slot.prompt) + '">' + escHtml(promptShort) + '</span>'
+      + '<button class="btn btn-sm btn-danger" onclick="removeCompareSlot(' + i + ')" title="Remove" style="padding:1px 6px;font-size:10px;">✕</button>'
+      + '</div>'
+      + '<div class="compare-slot-controls">'
+      + '<div class="view-toggle">'
+      + '<button class="btn btn-sm active" id="cmp-view-2d-' + i + '" onclick="toggleCompareView(' + i + ',\'2d\')">2D</button>'
+      + '<button class="btn btn-sm" id="cmp-view-3d-' + i + '" onclick="toggleCompareView(' + i + ',\'3d\')">3D</button>'
+      + '</div>'
+      + '</div>'
+      + '<div class="compare-slot-body" id="compare-heatmap-' + i + '"></div>'
+      + '<div class="compare-slot-3d" id="compare-3d-' + i + '">'
+      + '<canvas></canvas>'
+      + '<div class="cmp-3d-tooltip"></div>'
+      + '</div>'
+      + '<div class="compare-slot-meta">'
+      + badge
+      + ' <span>score: <strong style="color:' + scoreColor + '">' + score + '</strong></span>'
+      + (slot.data.band_layer != null ? ' <span>L' + slot.data.band_layer + '</span>' : '')
+      + '</div>'
+      + '</div>';
+  }
+  body.innerHTML = html;
+
+  for (let i = 0; i < _compareSlots.length; i++) {
+    const container = document.getElementById('compare-heatmap-' + i);
+    if (container && _compareSlots[i].data.matrix) {
+      renderHeatmap(container, _compareSlots[i].data);
+    }
+  }
+
+  document.querySelectorAll('.btn-compare-add').forEach(btn => {
+    const id = parseInt(btn.dataset.traceId);
+    const inDock = _compareSlots.some(s => s.id === id);
+    btn.classList.toggle('added', inDock);
+    btn.textContent = inDock ? 'Added' : '+ Compare';
+  });
+}
+
+async function addToCompare(traceId) {
+  if (_compareSlots.length >= 4) {
+    alert('Maximum 4 traces in comparison. Remove one first.');
+    return;
+  }
+  if (_compareSlots.some(s => s.id === traceId)) return;
+
+  try {
+    const d = await fetch(API + '/api/intent_trace/history/' + traceId).then(r => r.json());
+    if (d.error) { alert(d.error); return; }
+    _compareSlots.push({ id: traceId, prompt: d.prompt || '', data: d });
+    updateCompareDock();
+    // Scroll dock into view
+    document.getElementById('it-compare-dock').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    alert('Failed to load trace: ' + e);
+  }
+}
+
+function removeCompareSlot(idx) {
+  if (_compare3DStates[idx]) { _destroy3D(_compare3DStates[idx]); delete _compare3DStates[idx]; }
+  _compareSlots.splice(idx, 1);
+  updateCompareDock();
+}
+
+function clearCompareSlots() {
+  _cleanupCompare3D();
+  _compareSlots.length = 0;
+  updateCompareDock();
+}
+
+document.getElementById('it-compare-clear').addEventListener('click', clearCompareSlots);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPARE — DIFF ANALYSIS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateCompareDiffPanel() {
+  const panel = document.getElementById('it-compare-diff');
+  if (_compareSlots.length < 2) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
+  const selA = document.getElementById('diff-slot-a');
+  const selB = document.getElementById('diff-slot-b');
+  const prevA = selA.value, prevB = selB.value;
+  selA.innerHTML = ''; selB.innerHTML = '';
+  for (let i = 0; i < _compareSlots.length; i++) {
+    const label = (i + 1) + ': ' + (_compareSlots[i].prompt || '').substring(0, 40);
+    selA.innerHTML += '<option value="' + i + '">' + escHtml(label) + '</option>';
+    selB.innerHTML += '<option value="' + i + '">' + escHtml(label) + '</option>';
+  }
+  selA.value = prevA && parseInt(prevA) < _compareSlots.length ? prevA : '0';
+  selB.value = prevB && parseInt(prevB) < _compareSlots.length ? prevB : (_compareSlots.length > 1 ? '1' : '0');
+}
+
+function _diffColorScale(v, absMax) {
+  const range = Math.max(absMax, 0.5);
+  const clamped = Math.max(-range, Math.min(range, v));
+  const t = (clamped + range) / (2 * range);
+  const stops = [
+    [0.0,  20, 100, 200],
+    [0.3,  60, 170, 255],
+    [0.5, 230, 230, 230],
+    [0.7, 255, 160,  60],
+    [1.0, 200,  50,  20],
+  ];
+  let i = 0;
+  while (i < stops.length - 1 && stops[i + 1][0] < t) i++;
+  if (i >= stops.length - 1) i = stops.length - 2;
+  const s0 = stops[i], s1 = stops[i + 1];
+  const f = (t - s0[0]) / (s1[0] - s0[0]);
+  const r = Math.round(s0[1] + f * (s1[1] - s0[1]));
+  const g = Math.round(s0[2] + f * (s1[2] - s0[2]));
+  const b = Math.round(s0[3] + f * (s1[3] - s0[3]));
+  return `rgb(${r},${g},${b})`;
+}
+
+function _cosineSim(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i];
+  }
+  na = Math.sqrt(na); nb = Math.sqrt(nb);
+  if (na < 1e-12 || nb < 1e-12) return 0;
+  return dot / (na * nb);
+}
+
+function runCompareDiff() {
+  const idxA = parseInt(document.getElementById('diff-slot-a').value);
+  const idxB = parseInt(document.getElementById('diff-slot-b').value);
+  if (idxA === idxB) { alert('Select two different traces.'); return; }
+  const a = _compareSlots[idxA], b = _compareSlots[idxB];
+  if (!a || !b || !a.data.matrix || !b.data.matrix) { alert('Trace data missing.'); return; }
+
+  const dA = a.data, dB = b.data;
+  const layersA = dA.layers, layersB = dB.layers;
+  const sharedLayers = layersA.filter(l => layersB.includes(l));
+  if (sharedLayers.length === 0) { alert('No shared layers between traces.'); return; }
+
+  const colsA = sharedLayers.map(l => layersA.indexOf(l));
+  const colsB = sharedLayers.map(l => layersB.indexOf(l));
+
+  // Align tokens: filter special, then use shorter length (pad semantics differ)
+  const tokA = [], tokB = [];
+  const matA = dA.matrix, matB = dB.matrix;
+  const spA = dA.is_special || [], spB = dB.is_special || [];
+
+  const contentA = [], contentB = [];
+  for (let t = 0; t < (dA.tokens || []).length; t++) { if (!spA[t]) contentA.push({ idx: t, tok: dA.tokens[t] }); }
+  for (let t = 0; t < (dB.tokens || []).length; t++) { if (!spB[t]) contentB.push({ idx: t, tok: dB.tokens[t] }); }
+
+  // LCS alignment for shared tokens
+  const nA = contentA.length, nB = contentB.length;
+  const lcs = Array.from({length: nA + 1}, () => new Uint16Array(nB + 1));
+  for (let i = 1; i <= nA; i++)
+    for (let j = 1; j <= nB; j++)
+      lcs[i][j] = contentA[i-1].tok === contentB[j-1].tok
+        ? lcs[i-1][j-1] + 1
+        : Math.max(lcs[i-1][j], lcs[i][j-1]);
+
+  const aligned = [];
+  let ai = nA, bi = nB;
+  while (ai > 0 && bi > 0) {
+    if (contentA[ai-1].tok === contentB[bi-1].tok) {
+      aligned.unshift({ idxA: contentA[ai-1].idx, idxB: contentB[bi-1].idx, tok: contentA[ai-1].tok });
+      ai--; bi--;
+    } else if (lcs[ai-1][bi] >= lcs[ai][bi-1]) {
+      aligned.unshift({ idxA: contentA[ai-1].idx, idxB: -1, tok: contentA[ai-1].tok });
+      ai--;
+    } else {
+      aligned.unshift({ idxA: -1, idxB: contentB[bi-1].idx, tok: contentB[bi-1].tok });
+      bi--;
+    }
+  }
+  while (ai > 0) { aligned.unshift({ idxA: contentA[ai-1].idx, idxB: -1, tok: contentA[ai-1].tok }); ai--; }
+  while (bi > 0) { aligned.unshift({ idxA: -1, idxB: contentB[bi-1].idx, tok: contentB[bi-1].tok }); bi--; }
+
+  // Build diff matrix
+  const diffMatrix = [];
+  const diffTokens = [];
+  const matchType = []; // 'both', 'only-a', 'only-b'
+  for (const row of aligned) {
+    const dRow = [];
+    for (let c = 0; c < sharedLayers.length; c++) {
+      const vA = row.idxA >= 0 ? matA[row.idxA][colsA[c]] : 0;
+      const vB = row.idxB >= 0 ? matB[row.idxB][colsB[c]] : 0;
+      dRow.push(vA - vB);
+    }
+    diffMatrix.push(dRow);
+    diffTokens.push(row.tok);
+    matchType.push(row.idxA >= 0 && row.idxB >= 0 ? 'both' : row.idxA >= 0 ? 'only-a' : 'only-b');
+  }
+
+  // Compute per-layer cosine similarity (using only matched rows)
+  const perLayerCos = [];
+  const perLayerMAE = [];
+  for (let c = 0; c < sharedLayers.length; c++) {
+    const vecA = [], vecB = [];
+    for (const row of aligned) {
+      if (row.idxA >= 0 && row.idxB >= 0) {
+        vecA.push(matA[row.idxA][colsA[c]]);
+        vecB.push(matB[row.idxB][colsB[c]]);
+      }
+    }
+    perLayerCos.push(vecA.length > 1 ? _cosineSim(vecA, vecB) : 0);
+    let mae = 0;
+    for (let k = 0; k < vecA.length; k++) mae += Math.abs(vecA[k] - vecB[k]);
+    perLayerMAE.push(vecA.length > 0 ? mae / vecA.length : 0);
+  }
+
+  // Global stats
+  const matchedRows = aligned.filter(r => r.idxA >= 0 && r.idxB >= 0).length;
+  const allDiffs = [];
+  for (const row of diffMatrix) for (const v of row) allDiffs.push(v);
+  const absMax = allDiffs.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  const meanAbsDiff = allDiffs.reduce((s, v) => s + Math.abs(v), 0) / Math.max(allDiffs.length, 1);
+  const globalCos = _cosineSim(
+    aligned.filter(r => r.idxA >= 0 && r.idxB >= 0).flatMap(r => colsA.map(c => matA[r.idxA][c])),
+    aligned.filter(r => r.idxB >= 0 && r.idxA >= 0).flatMap(r => colsB.map(c => matB[r.idxB][c]))
+  );
+
+  // Score difference
+  const scoreA = dA.decision_score != null ? dA.decision_score : NaN;
+  const scoreB = dB.decision_score != null ? dB.decision_score : NaN;
+
+  // Stats display
+  const statsEl = document.getElementById('diff-stats');
+  let statsHtml = `<span>${matchedRows} shared tokens · ${aligned.length - matchedRows} unmatched</span>`;
+  statsHtml += ` · <span>Global cosine: <strong>${globalCos.toFixed(3)}</strong></span>`;
+  statsHtml += ` · <span>Mean |diff|: <strong>${meanAbsDiff.toFixed(3)}</strong></span>`;
+  if (!isNaN(scoreA) && !isNaN(scoreB)) {
+    const dScore = scoreA - scoreB;
+    const dc = dScore >= 0 ? 'var(--red)' : 'var(--green)';
+    statsHtml += ` · <span>Score delta: <strong style="color:${dc}">${dScore >= 0 ? '+' : ''}${dScore.toFixed(3)}</strong></span>`;
+  }
+  statsEl.innerHTML = statsHtml;
+
+  // Render diff heatmap
+  const container = document.getElementById('diff-heatmap-container');
+  let html = '<table class="heatmap-table"><thead><tr><th></th>';
+  for (const l of sharedLayers) html += '<th>' + l + '</th>';
+  html += '</tr></thead><tbody>';
+  for (let t = 0; t < diffTokens.length; t++) {
+    const rowOpacity = matchType[t] === 'both' ? '' : 'opacity:0.4;';
+    const marker = matchType[t] === 'only-a' ? ' [A]' : matchType[t] === 'only-b' ? ' [B]' : '';
+    html += '<tr style="' + rowOpacity + '"><td class="tok-label" title="' + escHtml(diffTokens[t]) + marker + '">' + escHtml(diffTokens[t]) + '</td>';
+    for (let c = 0; c < sharedLayers.length; c++) {
+      const v = diffMatrix[t][c];
+      html += '<td style="background:' + _diffColorScale(v, absMax) + '" title="' + escHtml(diffTokens[t]) + ' L' + sharedLayers[c] + ': ' + v.toFixed(4) + '"></td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+
+  // Render per-layer similarity bar chart
+  const canvas = document.getElementById('diff-similarity-canvas');
+  const ctx = canvas.getContext('2d');
+  const cW = canvas.parentElement.clientWidth - 10;
+  const cH = 220;
+  canvas.width = cW; canvas.height = cH;
+  ctx.clearRect(0, 0, cW, cH);
+
+  const pad = { l: 40, r: 10, t: 20, b: 30 };
+  const plotW = cW - pad.l - pad.r;
+  const plotH = cH - pad.t - pad.b;
+  const nCols = sharedLayers.length;
+  const barW = Math.max(2, Math.min(20, plotW / nCols - 2));
+
+  // Background
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.fillRect(pad.l, pad.t, plotW, plotH);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 0.5;
+  for (const yv of [0, 0.25, 0.5, 0.75, 1.0]) {
+    const y = pad.t + plotH * (1 - yv);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(cW - pad.r, y); ctx.stroke();
+  }
+
+  // Bars
+  for (let i = 0; i < nCols; i++) {
+    const cos = perLayerCos[i];
+    const x = pad.l + (i + 0.5) * plotW / nCols - barW / 2;
+    const barH = Math.abs(cos) * plotH;
+    const y0 = pad.t + plotH;
+
+    // Color: green=similar, red=dissimilar/negative
+    const hue = cos >= 0 ? Math.round(cos * 120) : 0;
+    const sat = cos >= 0 ? 70 : 80;
+    const light = cos >= 0 ? 45 : 40;
+    ctx.fillStyle = `hsl(${hue},${sat}%,${light}%)`;
+    ctx.fillRect(x, y0 - barH, barW, barH);
+
+    // Band layer highlight
+    if (sharedLayers[i] === dA.band_layer || sharedLayers[i] === dB.band_layer) {
+      ctx.strokeStyle = '#50c8ff';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 1, y0 - barH - 1, barW + 2, barH + 2);
+    }
+  }
+
+  // X axis labels
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+  const labelStep = Math.max(1, Math.floor(nCols / 16));
+  for (let i = 0; i < nCols; i += labelStep) {
+    ctx.fillText('L' + sharedLayers[i], pad.l + (i + 0.5) * plotW / nCols, cH - 8);
+  }
+
+  // Y axis
+  ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '10px monospace';
+  for (const yv of [0, 0.5, 1.0]) {
+    ctx.fillText(yv.toFixed(1), pad.l - 4, pad.t + plotH * (1 - yv) + 4);
+  }
+
+  // Title
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('Cosine Similarity by Layer (matched tokens)', pad.l, pad.t - 6);
+
+  // Top divergent tokens (by max abs diff across layers)
+  const tokenDivergence = [];
+  for (let t = 0; t < aligned.length; t++) {
+    if (matchType[t] !== 'both') continue;
+    let maxD = 0, maxL = 0;
+    for (let c = 0; c < sharedLayers.length; c++) {
+      const ad = Math.abs(diffMatrix[t][c]);
+      if (ad > maxD) { maxD = ad; maxL = sharedLayers[c]; }
+    }
+    const meanD = diffMatrix[t].reduce((s, v) => s + Math.abs(v), 0) / sharedLayers.length;
+    tokenDivergence.push({ tok: diffTokens[t], maxDiff: maxD, maxLayer: maxL, meanDiff: meanD });
+  }
+  tokenDivergence.sort((a, b) => b.maxDiff - a.maxDiff);
+
+  const topDiv = document.getElementById('diff-top-divergent');
+  let divHtml = '<div style="font-size:12px;font-weight:500;margin-bottom:4px;">Top Divergent Tokens</div>';
+  divHtml += '<div class="diff-divergent-list">';
+  for (const d of tokenDivergence.slice(0, 8)) {
+    const col = d.maxDiff > meanAbsDiff * 2 ? 'var(--red)' : 'var(--text)';
+    divHtml += '<div class="div-row">'
+      + '<span class="div-token">' + escHtml(d.tok) + '</span>'
+      + '<span>L' + d.maxLayer + '</span>'
+      + '<span class="div-val" style="color:' + col + '">|' + d.maxDiff.toFixed(3) + '|</span>'
+      + '</div>';
+  }
+  divHtml += '</div>';
+  topDiv.innerHTML = divHtml;
+}
+
+// Auto-update diff panel when compare dock content changes
+const _dockObserver = new MutationObserver(() => { updateCompareDiffPanel(); });
+_dockObserver.observe(document.getElementById('it-compare-body'), { childList: true });
+// Also trigger on dock hide (when all slots cleared)
+const _dockVisObserver = new MutationObserver(() => {
+  if (document.getElementById('it-compare-dock').style.display === 'none') {
+    document.getElementById('it-compare-diff').style.display = 'none';
+  }
+});
+_dockVisObserver.observe(document.getElementById('it-compare-dock'), { attributes: true, attributeFilter: ['style'] });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOG PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+
+(function() {
+  let lastTs = 0;
+  let logCount = 0;
+  const panel = document.getElementById('log-panel');
+  const body = document.getElementById('log-body');
+  const countBadge = document.getElementById('log-count');
+  const toggle = document.getElementById('log-toggle');
+
+  toggle.addEventListener('click', () => {
+    panel.classList.toggle('collapsed');
+    panel.classList.toggle('expanded');
+  });
+
+  document.getElementById('log-clear').addEventListener('click', (e) => {
+    e.stopPropagation();
+    body.innerHTML = '';
+    logCount = 0;
+    countBadge.textContent = '0';
+    fetch(API + '/api/logs/clear', {method: 'POST'});
+  });
+
+  function classifyLine(msg) {
+    const lower = msg.toLowerCase();
+    if (lower.includes('error') || lower.includes('traceback') || lower.includes('exception')) return 'log-err';
+    if (lower.includes('warn') || lower.includes('watchdog')) return 'log-warn';
+    return '';
+  }
+
+  async function pollLogs() {
+    try {
+      const r = await fetch(API + '/api/logs?since=' + lastTs);
+      const entries = await r.json();
+      if (!entries.length) return;
+      const wasAtBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+      for (const e of entries) {
+        const div = document.createElement('div');
+        div.className = 'log-line ' + classifyLine(e.msg);
+        const ts = new Date(e.ts * 1000);
+        const timeStr = ts.toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+        div.innerHTML = '<span class="log-ts">' + timeStr + '</span>' + escHtml(e.msg);
+        body.appendChild(div);
+        logCount++;
+        if (e.ts > lastTs) lastTs = e.ts;
+      }
+      countBadge.textContent = logCount;
+      if (wasAtBottom) body.scrollTop = body.scrollHeight;
+      // trim to 500 lines
+      while (body.children.length > 500) body.removeChild(body.firstChild);
+    } catch(e) {}
+  }
+
+  setInterval(pollLogs, 2000);
+  pollLogs();
+})();
+
+</script>
+
+<!-- Log panel -->
+<div class="log-panel collapsed" id="log-panel">
+  <div class="log-header" id="log-toggle">
+    <span>Server Logs</span>
+    <span class="log-count" id="log-count">0</span>
+    <span style="margin-left:auto;font-size:10px;">click to toggle</span>
+    <button class="btn btn-sm" id="log-clear" style="padding:1px 6px;font-size:10px;">Clear</button>
+  </div>
+  <div class="log-body" id="log-body"></div>
+</div>
+
+</body>
+</html>

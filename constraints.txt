@@ -1,0 +1,10 @@
+# Pip constraints — protects the pinned ROCm torch stack in the dev container.
+# Used via PIP_CONSTRAINT (see scripts/setup_container.sh). If any pip install
+# tries to replace these, pip ERRORS instead of silently swapping in a CUDA or
+# CPU wheel. Versions are the pip-metadata versions from the pinned image
+# rocm/pytorch@sha256:7fe531fa... (rig:2.9.1); torch.__version__ reports a
+# slightly different string — these must stay the pip ones.
+torch==2.9.1+rocm7.2.4.lw.git39497456
+torchvision==0.24.0+rocm7.2.4.gitb919bd0c
+torchaudio==2.9.0+rocm7.2.4.gite3c6ee2b
+numpy==2.4.6

@@ -1,0 +1,46 @@
+# ACSL v2 config — 3-label training
+# Label 0: safe/benign (256 harmless prompts)
+# Label 1: harmful intent (256 framed moderate - shows intent, some details)
+# Label 2: dangerous (44 strong compliance + 212 AdvBench raw harmful)
+# Risk = logit[2] - logit[0], giving a -1 to +1 spectrum via sigmoid
+
+seed: 0
+
+model:
+  name: "Qwen/Qwen2.5-1.5B-Instruct"
+  dtype: "float16"
+
+tap:
+  layer_range: [15, 17]
+  capture_pattern: false
+
+head:
+  hidden: 256
+  n_categories: 3
+  benign_index: 0
+  temperature: 4.0
+  lr: 1.0e-3
+  epochs: 20
+
+loop:
+  g_max: 2.0
+  K: 4
+  eps: 1.0e-2
+  thr: -1.0
+
+data:
+  harm_path: "data/harm_v2_3label.jsonl"
+  harmless_path: "data/harmless.jsonl"
+  wrapped_path: "data/harm_v2_wrapped.jsonl"
+  benign_sensitive_path: "data/benign_sensitive.jsonl"
+  cache_dir: "runs/cache_v2"
+
+eval:
+  judge: "heuristic"
+  n_per_condition: 300
+  n_boot: 10000
+
+decision:
+  asr_reduction_min: 0.25
+  over_refusal_margin: 0.03
+  kill_delta_max: 0.05

@@ -1,0 +1,70 @@
+# NOTE: git .gitignore does NOT support inline/trailing comments.
+# Every comment must be on its own line, or the pattern breaks.
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ── Virtual envs (the Docker container IS the environment) ──
+.venv/
+venv/
+env/
+
+# ── Model weights, activation caches, direction vectors — NEVER in history ──
+# Anchored with a leading slash to the REPO ROOT so they do NOT also match the
+# source subpackage acsl/data/ (unanchored 'data/' would ignore that too).
+# /runs/ = all activation caches, trained heads, manifests, results
+/runs/
+# /old/ = superseded pre-migration artifacts (~224M)
+/old/
+# data/: TRACK the hand-annotation ground truth (small, irreplaceable — prepare_data.py
+# cannot regenerate the intent/severity/label annotations); IGNORE raw-benchmark &
+# generated bulk. Use /data/* (not /data/) so per-file negations below are allowed.
+/data/*
+# only public-benchmark-derived files are tracked; custom corpora and
+# jailbreak-wrapped sets live outside the repo (see README, Data policy)
+# --- tracked: annotation layer (intent/severity/label + family/annotation fields) ---
+!/data/xstest_safe.jsonl
+!/data/xstest_unsafe.jsonl
+# --- tracked: tiny hand-curated interpretability sets (scripts 10/13 depend on these) ---
+# trained heads / weights
+*.pt
+# activation tensors (~320k files across caches)
+*.npy
+# direction vectors / norm stats
+*.npz
+# (allow packaged arrays under the source pkg, if ever added)
+!acsl/**/*.npy
+# HuggingFace cache — lives in a Docker volume, not the tree (belt+braces)
+hf_cache/
+
+# ── SQLite intent-trace DB + WAL/SHM + ad-hoc exports ──
+intent_trace.db
+intent_trace.db-wal
+intent_trace.db-shm
+intent_trace_export.*
+
+# ── Separate git repo — do NOT nest or track (it has its own .git) ──
+resid_viewer/
+
+# ── Machine-local Claude settings (permissions, etc.) ──
+.claude/settings.local.json
+
+# ── Scratch / temp ──
+scratchpad/
+scratchpad_*
+*.tmp
+
+# ── Tooling / editor / OS ──
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
